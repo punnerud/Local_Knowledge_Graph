@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Llama Knowledge Graph</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        #query { width: 100%; padding: 10px; margin-bottom: 10px; }
+        #submit { padding: 10px 20px; }
+        .step, .final-answer, .similar-item { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
+        .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
+        #container { display: flex; }
+        #left-panel { flex: 1; margin-right: 20px; }
+        #graph { flex: 1; height: 600px; border: 1px solid #ddd; }
+        .inconsistency { 
+            margin-bottom: 20px; 
+            border: 1px solid #ffcccc; 
+            background-color: #fff0f0; 
+            padding: 10px; 
+        }
+        .inconsistency h3 { 
+            margin-top: 0; 
+            color: #cc0000; 
+        }
+        .strongest-path {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            font-size: 0.9em;
+        }
+        .strongest-path h4 {
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+        .strongest-path ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Local Llama Knowledge Graph</h1>
+    <p>This application uses a local Llama model to answer queries, build embeddings, and create a knowledge graph for exploring related questions and answers.</p>
+    
+    <input type="text" id="query" placeholder="e.g., What is the capital of France?">
+    <button id="submit">Submit</button>
+
+    <div id="container">
+        <div id="left-panel">
+            <div id="response"></div>
+            <div id="similar"></div>
+        </div>
+        <div id="graph"></div>
+    </div>
+
+    <script>
+        const query = document.getElementById('query');
+        const submit = document.getElementById('submit');
+        const response = document.getElementById('response');
+        const similar = document.getElementById('similar');
+        const graphContainer = document.getElementById('graph');
+
+        let network;
+        let nodes = new vis.DataSet();
+        let edges = new vis.DataSet();
+
+        function initGraph() {
+            const data = {
+                nodes: nodes,
+                edges: edges
+            };
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 30,
+                    font: {
+                        size: 12,
+                        color: '#000000'
+                    },
+                    borderWidth: 2
+                },
+                edges: {
+                    width: 2,
+                    font: {
+                        size: 12,
+                        align: 'middle'
+                    },
+                    color: {
+                        inherit: 'both'
+                    },
+                    scaling: {
+                        min: 1,
+                        max: 5,
+                        label: {
+                            enabled: true,
+                            min: 14,
+                            max: 30
+                        }
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    barnesHut: {
+                        gravitationalConstant: -2000,
+                        centralGravity: 0.3,
+                        springLength: 95,
+                        springConstant: 0.04,
+                        damping: 0.09,
+                        avoidOverlap: 0.1
+                    },
+                    forceAtlas2Based: {
+                        gravitationalConstant: -50,
+                        centralGravity: 0.01,
+                        springConstant: 0.08,
+                        springLength: 100,
+                        damping: 0.4,
+                        avoidOverlap: 0
+                    },
+                    solver: 'forceAtlas2Based'
+                }
+            };
+            network = new vis.Network(graphContainer, data, options);
+        }
+
+        initGraph();
+
+        submit.addEventListener('click', () => {
+            response.innerHTML = '';
+            similar.innerHTML = '';
+            nodes.clear();
+            edges.clear();
+            const userQuery = query.value;
+
+            const eventSource = new EventSource(`/query?query=${encodeURIComponent(userQuery)}`);
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'step') {
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'step';
+                    stepDiv.innerHTML = `
+                        <h3>Step ${data.step}: ${data.title}</h3>
+                        ${marked.parse(data.content)}
+                    `;
+                    
+                    // Add strongest path
+                    if (data.path_data) {
+                        const pathDiv = document.createElement('div');
+                        pathDiv.className = 'strongest-path';
+                        pathDiv.innerHTML = displayStrongestPath(data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
+                        stepDiv.appendChild(pathDiv);
+                    }
+                    
+                    response.appendChild(stepDiv);
+
+                    // Update graph
+                    if (data.graph) {
+                        updateGraph(data.graph);
+                    }
+                } else if (data.type === 'final') {
+                    const finalDiv = document.createElement('div');
+                    finalDiv.className = 'final-answer';
+                    finalDiv.innerHTML = `
+                        <h3>Final Answer</h3>
+                        ${marked.parse(data.content)}
+                    `;
+                    
+                    // Add strongest path for final answer
+                    if (data.path_data) {
+                        const pathDiv = document.createElement('div');
+                        pathDiv.className = 'strongest-path';
+                        pathDiv.innerHTML = displayStrongestPath(data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
+                        finalDiv.appendChild(pathDiv);
+                    }
+                    
+                    response.appendChild(finalDiv);
+
+                    // Update graph
+                    if (data.graph) {
+                        updateGraph(data.graph);
+                    }
+                } else if (data.type === 'similar') {
+                    similar.innerHTML = '<h2>Related Questions and Answers</h2>';
+                    data.items.forEach(item => {
+                        const similarDiv = document.createElement('div');
+                        similarDiv.className = 'similar-item';
+                        similarDiv.innerHTML = `<h3>${item[3] ? 'Question' : 'Answer'} (Similarity: ${item[2].toFixed(4)})</h3><p>${item[1]}</p>`;
+                        similar.appendChild(similarDiv);
+                    });
+                } else if (data.type === 'inconsistency') {
+                    const inconsistencyDiv = document.createElement('div');
+                    inconsistencyDiv.className = 'inconsistency';
+                    inconsistencyDiv.innerHTML = `<h3>Inconsistency Detected</h3><p>${data.message}</p>`;
+                    response.appendChild(inconsistencyDiv);
+                    
+                    // Reset the graph
+                    nodes.clear();
+                    edges.clear();
+                } else if (data.type === 'done') {
+                    eventSource.close();
+                }
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('EventSource failed:', error);
+                eventSource.close();
+            };
+        });
+
+        function updateGraph(graphData) {
+            // Update nodes
+            graphData.nodes.forEach(node => {
+                if (nodes.get(node.id)) {
+                    nodes.update(node);
+                } else {
+                    nodes.add(node);
+                }
+            });
+
+            // Update edges
+            edges.clear(); // Clear existing edges before adding new ones
+            graphData.edges.forEach(edge => {
+                edges.add(edge);
+            });
+
+            // Fit the network to view all nodes
+            network.fit();
+        }
+
+        function displayStrongestPath(path, weights, avgSimilarity) {
+            if (!path || !weights || path.length === 0 || weights.length === 0) {
+                return '<p>No valid path found.</p>';
+            }
+            let pathHtml = '<h4>Strongest Path:</h4><ul>';
+            for (let i = 0; i < path.length - 1; i++) {
+                pathHtml += `<li>${path[i]} → ${path[i+1]} (Similarity: ${weights[i].toFixed(4)})</li>`;
+            }
+            pathHtml += `</ul><p>Overall Path Similarity (Weighted Average): ${avgSimilarity.toFixed(4)}</p>`;
+            return pathHtml;
+        }
+    </script>
+</body>
+</html>
