@@ -40,9 +40,9 @@ The Local Knowledge Graph is a Flask-based web application that leverages a loca
 ## Installation
 
 1. Clone this repository.
-2. Install the required Python packages:
+2. Install the required Python packages using the requirements.txt file:
    ```
-   pip install flask numpy scikit-learn annoy networkx
+   pip install -r requirements.txt
    ```
 3. Ensure you have a local Llama model running and accessible.
 4. Run the Flask application:

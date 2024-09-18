@@ -1,0 +1,6 @@
+Flask
+numpy
+scikit-learn
+annoy
+networkx
+requests
