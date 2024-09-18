@@ -1,5 +1,7 @@
 # Local Knowledge Graph
 
+![Example](example.png)
+
 This application uses a local Llama model to answer queries, build embeddings, and create a knowledge graph for exploring related questions and answers.
 
 ## Description
