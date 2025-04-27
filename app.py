@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, Response
 import requests
 import json
 import time
@@ -7,12 +7,13 @@ import sqlite3
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from annoy import AnnoyIndex
-import os
-import networkx as nx
+
 import heapq
-
+import matplotlib.pyplot as plt
+from io import BytesIO
+import networkx as nx
 app = Flask(__name__)
-
+latest_graph_data = {"nodes": [], "edges": []}
 # Function to get embeddings from the API
 def get_embedding(text):
     headers = {'Content-Type': 'application/json'}
@@ -39,6 +40,8 @@ def create_database():
                  (id INTEGER PRIMARY KEY, text TEXT, embedding BLOB, is_question INTEGER)''')
     conn.commit()
     return conn
+
+
 
 def insert_data(conn, text, embedding, is_question):
     c = conn.cursor()
@@ -314,6 +317,10 @@ def generate_response(prompt, conn):
             graph_data['nodes'][-1]['value'] = 20  # Set a default size if no connections
 
         serialized_graph_data = serialize_graph_data(graph_data)
+
+        global latest_graph_data
+        latest_graph_data = serialized_graph_data
+
         strongest_path, path_weights, avg_similarity = calculate_strongest_path(serialized_graph_data, step_count)
         
         path_data = {
@@ -401,7 +408,7 @@ def generate_response(prompt, conn):
         'label': f"Final Answer: {get_short_title(final_answer)}"
     })
     
-    # Calculate similarities with previous steps for the final answer
+
     top_similarities = calculate_top_similarities(embeddings + [final_embedding], step_count - 1, top_k=2)
     
     for prev_step, similarity in top_similarities:
@@ -501,6 +508,37 @@ def check_consistency(final_answer, evaluation):
     #print("Failed to get a valid consistency check after 5 attempts. Defaulting to inconsistent.")
     #return False
     return True
+@app.route("/export/image")
+def export_png():
+    global latest_graph_data
+    data = latest_graph_data
 
+    # Build a NetworkX graph
+    G = nx.DiGraph()
+    for n in data.get("nodes", []):
+        G.add_node(n["id"], label=n["label"])
+    for e in data.get("edges", []):
+        G.add_edge(e["from"], e["to"], weight=e["value"])
+
+
+    pos = nx.spring_layout(G, k=0.5, seed=42)
+
+    # Draw with Matplotlib
+    fig, ax = plt.subplots(figsize=(8, 6), dpi=150)
+    nx.draw(G, pos, ax=ax, with_labels=False, node_color="#3182bd",
+            edge_color="#bbb", width=1.2, node_size=800)
+    labels = {i: d["label"] for i, d in G.nodes(data=True)}
+    nx.draw_networkx_labels(G, pos, labels, font_size=8)
+    ax.axis("off")
+    buf = BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    plt.close(fig)
+    buf.seek(0)
+
+    return Response(buf.read(),
+                    mimetype="image/png",
+                    headers={
+                        "Content-Disposition": "attachment; filename=graph.png"
+                    })
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5100, debug=True)

@@ -6,12 +6,14 @@
     <title>Local Llama Knowledge Graph</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
         #query { width: 100%; padding: 10px; margin-bottom: 10px; }
         #submit { padding: 10px 20px; }
         .step, .final-answer, .similar-item { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
+
         #container { display: flex; }
         #left-panel { flex: 1; margin-right: 20px; }
         #graph { flex: 1; height: 600px; border: 1px solid #ddd; }
@@ -48,7 +50,7 @@
     
     <input type="text" id="query" placeholder="e.g., What is the capital of France?">
     <button id="submit">Submit</button>
-
+    <button id="download-img">Download PNG</button>
     <div id="container">
         <div id="left-panel">
             <div id="response"></div>
@@ -63,6 +65,8 @@
         const response = document.getElementById('response');
         const similar = document.getElementById('similar');
         const graphContainer = document.getElementById('graph');
+        const downloadBtn = document.getElementById('download-img');
+
 
         let network;
         let nodes = new vis.DataSet();
@@ -243,6 +247,13 @@
             pathHtml += `</ul><p>Overall Path Similarity (Weighted Average): ${avgSimilarity.toFixed(4)}</p>`;
             return pathHtml;
         }
+
+        downloadBtn.addEventListener('click', () => {
+  window.location = '/export/image';
+});
+
+
     </script>
+
 </body>
 </html>
