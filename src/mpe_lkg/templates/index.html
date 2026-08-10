@@ -28,6 +28,29 @@
         .notice { color: #7a5c00; background: #fff6d8; border: 1px solid #e0c356;
                   padding: 6px 10px; margin-top: 8px; font-size: 13px; }
         #status { color: #666; font-size: 13px; min-height: 1.4em; margin-bottom: 10px; }
+
+        /* Progress. A determinate bar would be a lie -- the number of steps is not
+           known in advance -- so it fills toward a soft ceiling and stops claiming
+           anything the moment the run ends. */
+        #progress { margin: 8px 0 4px; }
+        #progress-bar { height: 4px; background: #eceae4; border-radius: 2px; overflow: hidden; }
+        #progress-bar span { display: block; height: 100%; width: 0; background: #2a78d6;
+                             transition: width .45s ease-out; }
+        #progress[data-state="done"] #progress-bar span { background: #008300; }
+        #progress[data-state="error"] #progress-bar span { background: #c0392b; }
+        #progress[data-state="idle"] #progress-bar { visibility: hidden; }
+
+        /* Collapsed summary: question, then how much thinking, then the answer. */
+        .thinking-toggle { display: block; width: 100%; text-align: left; margin: 0 0 20px;
+            padding: 9px 12px; border: 1px solid #ddd; background: #f7f6f3; border-radius: 4px;
+            cursor: pointer; font: inherit; color: #52514e; }
+        .thinking-toggle:hover { background: #efeee9; }
+        .thinking-toggle b { color: #0b0b0b; }
+        #steps[hidden] { display: none; }
+        .step[data-focus="true"] { border-color: #2a78d6; box-shadow: 0 0 0 3px rgba(42,120,214,.14); }
+        .step-close { float: right; border: none; background: none; cursor: pointer;
+            font-size: 18px; line-height: 1; color: #7a7975; padding: 0 2px; margin: 0; }
+        .step-close:hover { color: #0b0b0b; }
         #models { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
                   font-size: 13px; color: #52514e; margin: 8px 0 4px; }
         #models label { display: flex; align-items: center; gap: 5px; }
@@ -53,13 +76,18 @@
     <button id="submit">Submit</button>
     <button id="download-img">Download PNG</button>
     <div id="models"></div>
+    <div id="progress" data-state="idle"><div id="progress-bar"><span></span></div></div>
     <div id="status"></div>
 
     <div id="container">
         <div id="left-panel">
             <div id="setup"></div>
             <div id="errors"></div>
-            <div id="response"></div>
+            <div id="response">
+                <div id="thinking" hidden></div>
+                <div id="steps"></div>
+                <div id="answer"></div>
+            </div>
             <div id="similar"></div>
         </div>
         <div id="graph"></div>
@@ -70,6 +98,11 @@
         const submit = document.getElementById('submit');
         const downloadBtn = document.getElementById('download-img');
         const response = document.getElementById('response');
+        const thinking = document.getElementById('thinking');
+        const steps = document.getElementById('steps');
+        const answer = document.getElementById('answer');
+        const progress = document.getElementById('progress');
+        const progressBar = progress.querySelector('span');
         const similar = document.getElementById('similar');
         const errors = document.getElementById('errors');
         const status = document.getElementById('status');
@@ -82,6 +115,7 @@
         // EventSource running when you submitted again, so two reasoning runs raced
         // into the same panel.
         let eventSource = null;
+        let stepCount = 0;
 
         function initGraph() {
             network = new vis.Network(graphContainer, { nodes, edges }, {
@@ -107,6 +141,14 @@
             // magnify past 100% by default and a handful of nodes then sits in a
             // corner of a mostly empty canvas.
             network.on('stabilized', () => network.fit({ animation: false, maxZoomLevel: 3 }));
+
+            // Hover: show where the reasoning walked to reach this step.
+            network.on('hoverNode', (params) => highlightPath(params.node));
+            network.on('blurNode', () => highlightPath(null));
+            // Click: open the log at that step.
+            network.on('click', (params) => {
+                if (params.nodes.length) focusStep(params.nodes[0]);
+            });
         }
         initGraph();
 
@@ -153,6 +195,10 @@
         function appendPanel(className, heading, data) {
             const div = document.createElement('div');
             div.className = className;
+            // The node id the backend uses, so a click on the graph can find this
+            // panel by lookup instead of by counting.
+            if (data.step) div.id = `step-${data.step}`;
+
             const h = document.createElement('h3');
             h.textContent = heading;
             div.appendChild(h);
@@ -174,7 +220,122 @@
                     data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
                 div.appendChild(pathDiv);
             }
-            response.appendChild(div);
+            (className === 'step' ? steps : answer).appendChild(div);
+        }
+
+        /* ---- progress ---------------------------------------------------------- */
+
+        function setProgress(state, fraction) {
+            progress.dataset.state = state;
+            if (fraction !== undefined) {
+                progressBar.style.width = `${Math.min(100, fraction * 100).toFixed(1)}%`;
+            }
+        }
+
+        function stepProgress(n) {
+            // How many steps a run takes is not known in advance, so a determinate
+            // bar would be inventing a denominator. This approaches a ceiling
+            // instead: visible movement per step, never a false "almost done".
+            setProgress('running', 1 - Math.pow(0.78, n));
+        }
+
+        /* ---- collapse the thinking once the run is over ------------------------ */
+
+        function collapseThinking(count) {
+            if (!count) return;
+            thinking.hidden = false;
+            thinking.innerHTML = '';
+            const button = document.createElement('button');
+            button.className = 'thinking-toggle';
+            button.type = 'button';
+            const label = (expanded) =>
+                `${expanded ? '▾' : '▸'} <b>${count} thinking step${count === 1 ? '' : 's'}</b>`
+                + ` — click to ${expanded ? 'hide' : 'show'}`;
+            button.innerHTML = label(false);
+            button.setAttribute('aria-expanded', 'false');
+            steps.hidden = true;
+
+            button.addEventListener('click', () => {
+                const expanded = steps.hidden;
+                steps.hidden = !expanded;
+                button.innerHTML = label(expanded);
+                button.setAttribute('aria-expanded', String(expanded));
+            });
+            thinking.appendChild(button);
+        }
+
+        function expandThinking() {
+            const button = thinking.querySelector('.thinking-toggle');
+            if (button && steps.hidden) button.click();
+        }
+
+        /* ---- graph <-> log ----------------------------------------------------- */
+
+        function focusStep(nodeId) {
+            // Node ids are "Step3"; the panels are "step-3".
+            const n = String(nodeId).replace(/^Step/, '');
+            expandThinking();
+            const panel = document.getElementById(`step-${n}`)
+                       || answer.querySelector('.final-answer');
+            if (!panel) return;
+
+            steps.querySelectorAll('[data-focus]').forEach(el => el.removeAttribute('data-focus'));
+            panel.dataset.focus = 'true';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            if (!panel.querySelector('.step-close')) {
+                const close = document.createElement('button');
+                close.className = 'step-close';
+                close.type = 'button';
+                close.title = 'Collapse the thinking again';
+                close.textContent = '×';
+                close.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    panel.removeAttribute('data-focus');
+                    close.remove();
+                    const button = thinking.querySelector('.thinking-toggle');
+                    if (button && !steps.hidden) button.click();
+                });
+                panel.querySelector('h3').appendChild(close);
+            }
+        }
+
+        function pathTo(nodeId) {
+            // Where the reasoning walked to get here: follow the strongest incoming
+            // edge back to the start. Cheap, and it is the same notion of "strongest"
+            // the server already draws.
+            const seen = new Set([nodeId]);
+            const walk = [nodeId];
+            let current = nodeId;
+            for (let guard = 0; guard < 64; guard++) {
+                const incoming = edges.get({
+                    filter: e => (e.to === current || e.from === current)
+                });
+                let best = null;
+                for (const edge of incoming) {
+                    const other = edge.to === current ? edge.from : edge.to;
+                    if (seen.has(other)) continue;
+                    // Only walk backwards, toward earlier steps.
+                    if (Number(String(other).replace(/^Step/, '')) >= Number(String(current).replace(/^Step/, ''))) continue;
+                    if (!best || edge.value > best.value) best = { other, value: edge.value };
+                }
+                if (!best) break;
+                seen.add(best.other);
+                walk.push(best.other);
+                current = best.other;
+            }
+            return walk;
+        }
+
+        function highlightPath(nodeId) {
+            const onPath = new Set(nodeId ? pathTo(nodeId) : []);
+            nodes.update(nodes.get().map(n => ({
+                id: n.id,
+                borderWidth: onPath.has(n.id) ? 4 : 2,
+                color: onPath.has(n.id)
+                    ? { border: '#eb6834', background: '#f7b799' }
+                    : null   // null restores the default palette
+            })));
         }
 
         function run() {
@@ -182,12 +343,18 @@
             if (!userQuery) return;
 
             if (eventSource) { eventSource.close(); eventSource = null; }
-            response.innerHTML = '';
+            thinking.innerHTML = '';
+            thinking.hidden = true;
+            steps.innerHTML = '';
+            steps.hidden = false;
+            answer.innerHTML = '';
             similar.innerHTML = '';
             errors.innerHTML = '';
             nodes.clear();
             edges.clear();
             setBusy(true);
+            stepCount = 0;
+            setProgress('running', 0.06);
             status.textContent = 'Connecting to the model…';
 
             eventSource = new EventSource(`/query?query=${encodeURIComponent(userQuery)}`);
@@ -196,11 +363,15 @@
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'step') {
-                    status.textContent = `Step ${data.step}…`;
+                    stepCount = data.step;
+                    stepProgress(data.step);
+                    status.textContent = `Step ${data.step}: ${data.title}`;
                     appendPanel('step', `Step ${data.step}: ${data.title}`, data);
                     if (data.graph) updateGraph(data.graph);
 
                 } else if (data.type === 'final') {
+                    setProgress('running', 0.97);
+                    status.textContent = 'Writing the final answer…';
                     appendPanel('final-answer', 'Final Answer', data);
                     if (data.graph) updateGraph(data.graph);
 
@@ -225,15 +396,20 @@
 
                 } else if (data.type === 'error') {
                     showError(data.message, data.hint);
+                    setProgress('error', 1);
                     status.textContent = '';
 
                 } else if (data.type === 'done') {
                     const model = data.embedding ? `${data.embedding.model} (${data.embedding.dim}d)` : 'unknown';
                     status.textContent = `Done in ${data.total_time.toFixed(1)}s · `
                                        + `${data.steps} steps · embeddings: ${model}`;
+                    // Question and answer stay in view; the reasoning folds away into
+                    // a single line you can open when you want it.
+                    collapseThinking(data.steps || stepCount);
 
                 } else if (data.type === 'done_stream') {
                     setBusy(false);
+                    if (progress.dataset.state !== 'error') setProgress('done', 1);
                     eventSource.close();
                     eventSource = null;
                 }

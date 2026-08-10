@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import socket
 import threading
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -240,6 +241,31 @@ def query():
     )
 
 
+PORT_SEARCH_WINDOW = 20
+
+
+def find_free_port(host: str, first: int, window: int = PORT_SEARCH_WINDOW) -> int:
+    """The first free port at or above ``first``.
+
+    Binds to test rather than asking whether the port is free: a "is it available"
+    check followed by a separate bind has a race between the two, and the common
+    case here -- you already have the app running -- is exactly when that race
+    matters. Binding and catching OSError leaves no gap.
+    """
+    for candidate in range(first, first + window):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                probe.bind((host, candidate))
+            except OSError:
+                continue
+            return candidate
+    raise OSError(
+        f"No free port between {first} and {first + window - 1} on {host}. "
+        f"Pass --port to choose another range."
+    )
+
+
 def run(host: str | None = None, port: int | None = None, debug: bool | None = None) -> None:
     """Start the server, after saying whether the model backend is actually there."""
     status = backends.health(backends.DEFAULT_BASE_URL)
@@ -248,11 +274,20 @@ def run(host: str | None = None, port: int | None = None, debug: bool | None = N
     else:
         print(f"\n  Ollama at {status['base_url']} — models: {', '.join(status['models'])}\n")
 
+    host = host or os.environ.get("LKG_HOST", "127.0.0.1")
+    wanted = port or int(os.environ.get("LKG_PORT", "5100"))
+    chosen = find_free_port(host, wanted)
+    if chosen != wanted:
+        # Said out loud even though it is a convenience: silently landing on a
+        # different port than the one you asked for is worse than an error, because
+        # you go looking at the wrong URL.
+        print(f"  {wanted} is in use — serving on http://{host}:{chosen} instead\n")
+
     # Bound to localhost with the debugger off by default. The previous default of
     # debug=True on 0.0.0.0 exposed the Werkzeug console to the whole network.
     app.run(
-        host=host or os.environ.get("LKG_HOST", "127.0.0.1"),
-        port=port or int(os.environ.get("LKG_PORT", "5100")),
+        host=host,
+        port=chosen,
         debug=os.environ.get("LKG_DEBUG", "") == "1" if debug is None else debug,
         threaded=True,
     )
