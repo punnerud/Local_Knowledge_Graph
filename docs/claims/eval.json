@@ -1,9 +1,9 @@
 {
   "provenance": "measured",
-  "measured_at": "2026-08-10T22:23:17+00:00",
+  "measured_at": "2026-08-10T22:36:06+00:00",
   "chat_model": "llama3.2:3b",
   "embedding_model": "nomic-embed-text:latest",
-  "repeats": 2,
+  "repeats": 4,
   "baseline": {
     "overall": {
       "n": 60,
@@ -986,6 +986,150 @@
         "seconds": {
           "mean": 5.28,
           "stdev": 1.46
+        },
+        "repeats_caught": 1,
+        "errors": 0
+      }
+    }
+  },
+  "validated": {
+    "overall": {
+      "n": 80,
+      "graded": 68,
+      "correct": 62,
+      "correct_rate": 0.9118,
+      "steps": {
+        "mean": 3.88,
+        "stdev": 1.33
+      },
+      "prompt_tokens": {
+        "mean": 1649.0,
+        "stdev": 910.58
+      },
+      "completion_tokens": {
+        "mean": 221.46,
+        "stdev": 114.44
+      },
+      "calls": {
+        "mean": 4.92,
+        "stdev": 1.46
+      },
+      "seconds": {
+        "mean": 5.23,
+        "stdev": 2.47
+      },
+      "repeats_caught": 4,
+      "errors": 0
+    },
+    "per_group": {
+      "simple": {
+        "n": 24,
+        "graded": 24,
+        "correct": 24,
+        "correct_rate": 1.0,
+        "steps": {
+          "mean": 3.54,
+          "stdev": 1.1
+        },
+        "prompt_tokens": {
+          "mean": 1363.17,
+          "stdev": 461.59
+        },
+        "completion_tokens": {
+          "mean": 170.62,
+          "stdev": 59.17
+        },
+        "calls": {
+          "mean": 4.58,
+          "stdev": 1.14
+        },
+        "seconds": {
+          "mean": 4.2,
+          "stdev": 1.38
+        },
+        "repeats_caught": 1,
+        "errors": 0
+      },
+      "multi_step": {
+        "n": 24,
+        "graded": 24,
+        "correct": 22,
+        "correct_rate": 0.9167,
+        "steps": {
+          "mean": 3.42,
+          "stdev": 1.21
+        },
+        "prompt_tokens": {
+          "mean": 1557.04,
+          "stdev": 1255.32
+        },
+        "completion_tokens": {
+          "mean": 204.83,
+          "stdev": 129.07
+        },
+        "calls": {
+          "mean": 4.5,
+          "stdev": 1.56
+        },
+        "seconds": {
+          "mean": 4.84,
+          "stdev": 2.79
+        },
+        "repeats_caught": 2,
+        "errors": 0
+      },
+      "malformed": {
+        "n": 20,
+        "graded": 20,
+        "correct": 16,
+        "correct_rate": 0.8,
+        "steps": {
+          "mean": 3.8,
+          "stdev": 1.15
+        },
+        "prompt_tokens": {
+          "mean": 1521.75,
+          "stdev": 548.61
+        },
+        "completion_tokens": {
+          "mean": 206.4,
+          "stdev": 74.22
+        },
+        "calls": {
+          "mean": 4.8,
+          "stdev": 1.15
+        },
+        "seconds": {
+          "mean": 4.87,
+          "stdev": 1.64
+        },
+        "repeats_caught": 0,
+        "errors": 0
+      },
+      "ambiguous": {
+        "n": 12,
+        "graded": 0,
+        "correct": 0,
+        "correct_rate": null,
+        "steps": {
+          "mean": 5.58,
+          "stdev": 1.0
+        },
+        "prompt_tokens": {
+          "mean": 2616.67,
+          "stdev": 668.53
+        },
+        "completion_tokens": {
+          "mean": 381.5,
+          "stdev": 88.29
+        },
+        "calls": {
+          "mean": 6.67,
+          "stdev": 1.07
+        },
+        "seconds": {
+          "mean": 8.63,
+          "stdev": 1.88
         },
         "repeats_caught": 1,
         "errors": 0
