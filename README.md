@@ -6,7 +6,9 @@
 [![PyPI](https://img.shields.io/pypi/v/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
 [![Python](https://img.shields.io/pypi/pyversions/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
 
-![Example](docs/example.png)
+<!-- Absolute, not docs/example.png: PyPI renders this README standalone on
+     pypi.org, where a relative path resolves against pypi.org and 404s. -->
+![Example](https://raw.githubusercontent.com/punnerud/Local_Knowledge_Graph/main/docs/example.png)
 
 Ask a local Llama model a question, watch it reason step by step, and see the steps drawn as a
 knowledge graph where the edges are the semantic similarity between them.
