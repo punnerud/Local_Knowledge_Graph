@@ -181,6 +181,7 @@ class TestHealthRoute:
         from mpe_lkg import backends
 
         monkeypatch.setattr(backends, "list_models", lambda *a, **k: [])
+        monkeypatch.setattr(backends.ollama, "list_models", lambda *a, **k: [])
         client, _ = flask_client(normal_script())
         payload = client.get("/health").get_json()
 
@@ -190,10 +191,9 @@ class TestHealthRoute:
     def test_health_names_the_missing_model(self, flask_client, monkeypatch):
         from mpe_lkg import backends
 
-        monkeypatch.setattr(
-            backends, "list_models",
-            lambda *a, **k: [{"name": "all-minilm:latest", "is_embedding": True, "capabilities": []}],
-        )
+        fake = [{"name": "all-minilm:latest", "is_embedding": True, "capabilities": []}]
+        monkeypatch.setattr(backends, "list_models", lambda *a, **k: fake)
+        monkeypatch.setattr(backends.ollama, "list_models", lambda *a, **k: fake)
         client, _ = flask_client(normal_script())
         payload = client.get("/health").get_json()
 

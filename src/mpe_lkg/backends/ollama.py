@@ -1,98 +1,21 @@
-"""Pluggable model backends.
-
-The rest of the application never talks to Ollama directly. It asks for an
-``EmbeddingBackend`` and a ``ChatBackend`` and uses those, which is what makes the
-reasoning loop and the graph testable without a model running anywhere.
-
-Two rules are load-bearing here and are easy to lose in a refactor:
-
-* An embedding backend reports its own dimension. Nothing downstream may assume a
-  size. The original code hardcoded 4096 in one place and passed it as a parameter
-  in another, so swapping the embedding model broke similarity search silently.
-* A backend never swallows an error. A failure is raised as ``BackendError`` with a
-  message meant for a human, because the symptom users reported was a blank page
-  with nothing in the terminal.
-"""
+"""Chat and embeddings from a local Ollama, plus what it has installed."""
 
 from __future__ import annotations
 
-import hashlib
 import json
-import os
-import time
 from collections.abc import Iterable, Iterator
-from typing import Protocol
 
 import numpy as np
 import requests
 
-DEFAULT_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-# Empty means "use whatever chat model Ollama actually has". Setting LKG_CHAT_MODEL
-# is an override, not a default: hardcoding a name here is what told a user with a
-# perfectly good model installed to go and pull one they did not need.
-DEFAULT_CHAT_MODEL = os.environ.get("LKG_CHAT_MODEL", "")
-# Empty means "look at what Ollama actually has and pick something sensible".
-DEFAULT_EMBED_MODEL = os.environ.get("LKG_EMBED_MODEL", "")
-REQUEST_TIMEOUT = float(os.environ.get("LKG_TIMEOUT", "120"))
-
-# The reasoning loop asks for exactly these three keys. Handing Ollama the schema
-# means the model cannot answer with prose that fails to parse, which is where the
-# "Step 5: Parsing Error" nodes in the project's own screenshot came from.
-STEP_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "title": {"type": "string"},
-        "content": {"type": "string"},
-        "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
-    },
-    "required": ["title", "content", "next_action"],
-}
-
-
-class BackendError(RuntimeError):
-    """A model backend could not answer, with a message worth showing a user."""
-
-    def __init__(self, message: str, *, hint: str = "") -> None:
-        super().__init__(message)
-        self.hint = hint
-
-    def user_message(self) -> str:
-        return f"{self}\n{self.hint}".strip()
-
-
-class EmbeddingBackend(Protocol):
-    def embed(self, texts: Iterable[str]) -> np.ndarray:
-        """Return an ``(n, dim)`` float32 array of L2-normalised row vectors."""
-
-    @property
-    def dim(self) -> int: ...
-
-    def describe(self) -> dict: ...
-
-
-class ChatBackend(Protocol):
-    def stream(self, messages: list[dict], max_tokens: int, *, schema: dict | None = None) -> Iterator[str]:
-        """Yield response text as it arrives."""
-
-    def describe(self) -> dict: ...
-
-
-def _l2_normalise(matrix: np.ndarray) -> np.ndarray:
-    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-    # A zero vector stays zero rather than becoming NaN; cosine against it is 0.
-    np.divide(matrix, norms, out=matrix, where=norms > 0)
-    return matrix
-
-
-def _clean_for_embedding(text: str) -> str:
-    """Collapse whitespace so one record can never become two.
-
-    Every text-in/vector-out endpoint that is line-oriented treats a newline as a
-    record separator. A single embedded newline shifts every subsequent vector onto
-    the wrong document, and the result looks like a plausible graph rather than an
-    error. Collapsing here costs nothing and removes the whole class of bug.
-    """
-    return " ".join(text.split()) or " "
+from ._shared import (
+    DEFAULT_BASE_URL,
+    DEFAULT_CHAT_MODEL,
+    REQUEST_TIMEOUT,
+    BackendError,
+    _clean_for_embedding,
+    _l2_normalise,
+)
 
 
 class OllamaEmbedding:
@@ -318,69 +241,6 @@ class OllamaChat:
                 f"Ollama returned an empty response from model '{self.model}'.",
                 hint="The model may have been evicted mid-request; try again.",
             )
-
-
-class ScriptedChat:
-    """A chat backend that replays canned responses. For tests."""
-
-    def __init__(
-        self,
-        responses: list[str],
-        *,
-        chunk_size: int = 24,
-        repeat_last: bool = False,
-        delay: float = 0.0,
-    ) -> None:
-        self._responses = list(responses)
-        self._chunk_size = chunk_size
-        self._repeat_last = repeat_last
-        # Lets a test observe the in-flight state of the UI, which a backend that
-        # answers instantly makes unobservable.
-        self._delay = delay
-        self.calls: list[list[dict]] = []
-
-    def describe(self) -> dict:
-        return {"kind": "scripted", "model": "scripted", "remaining": len(self._responses)}
-
-    def stream(self, messages: list[dict], max_tokens: int, *, schema: dict | None = None) -> Iterator[str]:
-        self.calls.append(list(messages))
-        if self._responses:
-            text = self._responses[0] if (self._repeat_last and len(self._responses) == 1) else self._responses.pop(0)
-        elif self._repeat_last:
-            text = ""
-        else:
-            raise BackendError("ScriptedChat ran out of scripted responses.")
-        if self._delay:
-            time.sleep(self._delay)
-        for start in range(0, len(text), self._chunk_size):
-            yield text[start : start + self._chunk_size]
-
-
-class DeterministicEmbedding:
-    """Reproducible pseudo-embeddings derived from the text. For tests.
-
-    Identical text yields an identical vector and similar text does not yield a
-    similar vector, which is exactly what a test wants: total control, no network.
-    """
-
-    def __init__(self, dim: int = 64) -> None:
-        self._dim = dim
-
-    @property
-    def dim(self) -> int:
-        return self._dim
-
-    def describe(self) -> dict:
-        return {"kind": "deterministic", "model": f"hash-{self._dim}", "dim": self._dim}
-
-    def embed(self, texts: Iterable[str]) -> np.ndarray:
-        rows = []
-        for text in texts:
-            seed = int.from_bytes(hashlib.sha256(_clean_for_embedding(text).encode()).digest()[:8], "big")
-            rows.append(np.random.default_rng(seed).standard_normal(self._dim))
-        if not rows:
-            return np.zeros((0, self._dim), dtype=np.float32)
-        return _l2_normalise(np.asarray(rows, dtype=np.float32))
 
 
 def list_models(base_url: str = DEFAULT_BASE_URL, *, session: requests.Session | None = None) -> list[dict]:

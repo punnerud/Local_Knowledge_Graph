@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from mpe_lkg import backends  # noqa: E402
-from mpe_lkg.reasoning import reason  # noqa: E402
+from mpe_lkg.reasoning import SHORT_SYSTEM_PROMPT, reason  # noqa: E402
 
 # expect: any one of these substrings must appear in the final answer.
 # reject:  none of these may appear.
@@ -60,9 +60,12 @@ QUESTIONS = [
     {"group": "multi_step", "q": "A rectangle is twice as long as it is wide and has a perimeter "
                                  "of 36 cm. What is its width?",
      "expect": ["6"]},
+    # pi*3^2 = 28.27 against 5^2 = 25, so the CIRCLE is larger. This expectation was
+    # written backwards at first, and the arms that answered correctly were marked
+    # wrong for it. Every arithmetic answer here has since been checked by hand.
     {"group": "multi_step", "q": "Which is larger, the area of a circle of radius 3 or a square "
                                  "of side 5?",
-     "expect": ["square"], "reject": ["circle is larger", "circle has a larger"]},
+     "expect": ["circle"], "reject": ["square is larger", "square has a larger"]},
 
     # -- malformed: the only right answer is to challenge the question
     {"group": "malformed", "q": "What is the capital of Oslo?",
@@ -103,14 +106,16 @@ def grade(answer: str, spec: dict) -> bool | None:
     return any(good.lower() in text for good in spec["expect"])
 
 
-def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detect=True) -> dict:
+def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detect=True,
+             system_prompt="", min_steps=0) -> dict:
     chat.reset_usage()
     started = time.time()
     steps, answer, error = [], "", None
 
     repeats = 0
     for event in reason(spec["q"], chat=chat, embedder=embedder, synthesise=synthesise,
-                        time_budget=budget, detect_repeats=detect):
+                        time_budget=budget, detect_repeats=detect, system_prompt=system_prompt,
+                        min_steps=min_steps):
         if event["type"] == "step":
             steps.append(event["content"])
         elif event["type"] == "repeat":
@@ -174,6 +179,10 @@ def main() -> int:
     parser.add_argument("--no-synthesis", action="store_true",
                         help="take the last step as the answer, as the baseline did")
     parser.add_argument("--budget", type=float, default=120.0, help="seconds per run")
+    parser.add_argument("--min-steps", type=int, default=0,
+                        help="floor on reasoning steps; 0 lets novelty decide")
+    parser.add_argument("--short-prompt", action="store_true",
+                        help="the terser prompt that measured 9 points worse")
     parser.add_argument("--no-repeat-detection", action="store_true",
                         help="keep every step, however much it repeats")
     args = parser.parse_args()
@@ -194,7 +203,9 @@ def main() -> int:
         marks = []
         for _ in range(args.repeats):
             result = run_once(spec, chat, embedder, synthesise=not args.no_synthesis,
-                              budget=args.budget, detect=not args.no_repeat_detection)
+                              budget=args.budget, detect=not args.no_repeat_detection,
+                              system_prompt=SHORT_SYSTEM_PROMPT if args.short_prompt else "",
+                              min_steps=args.min_steps)
             results.append(result)
             marks.append("-" if result["correct"] is None else ("." if result["correct"] else "x"))
         print(f"  [{n:>2}/{len(specs)}] {''.join(marks)}  {spec['group']:<11} {spec['q'][:52]}", flush=True)
