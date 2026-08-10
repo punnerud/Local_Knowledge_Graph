@@ -33,6 +33,7 @@ from graph import cosine_similarity, strongest_path, top_similarities  # noqa: E
 
 CLAIMS = "data/claims/edge_spread.json"
 SEARCH = "data/claims/search_bench.json"
+SWEEP = "data/claims/layer_sweep.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -143,6 +144,37 @@ FILE_CHECKS = [
         0.0,
         0.001,
         "annoy 1.17.3 still fails to return a vector as its own neighbour",
+    ),
+    (
+        SWEEP,
+        lambda d: 1.0 if d.get("provenance") == "measured" else 0.0,
+        1.0,
+        0.001,
+        "layer sweep is measured, not inherited",
+    ),
+    (
+        SWEEP,
+        # The first block sees each token before any context has been mixed in, so it
+        # cannot tell one topic from another. Near-zero here is the control that says
+        # the separation measured deeper in is real and not an artefact of the metric.
+        lambda d: float(d["first_layer_separation"]),
+        0.0,
+        0.02,
+        "the first block separates topics by almost nothing",
+    ),
+    (
+        SWEEP,
+        lambda d: float(d["best_separation"]),
+        0.148,
+        0.06,
+        "the deepest block separates topics by about 0.15",
+    ),
+    (
+        SWEEP,
+        lambda d: 1.0 if d["best_separation"] > 5 * max(d["first_layer_separation"], 1e-6) else 0.0,
+        1.0,
+        0.001,
+        "depth separates topics several times better than the first block",
     ),
 ]
 

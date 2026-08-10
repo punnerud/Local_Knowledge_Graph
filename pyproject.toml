@@ -2,6 +2,7 @@
 testpaths = ["tests"]
 markers = [
     "ollama: needs a running Ollama with the models named in the README",
+    "hf: needs torch, transformers and a downloadable Hugging Face model",
 ]
 filterwarnings = ["error::DeprecationWarning"]
 

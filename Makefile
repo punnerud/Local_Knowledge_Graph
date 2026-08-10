@@ -26,6 +26,14 @@ test-ollama:
 measure:
 	$(PY) scripts/measure.py
 
+# How well does each layer of a local model separate topics? Needs torch.
+sweep:
+	$(PY) scripts/layer_sweep.py
+
+# Exact scan versus an approximate index, at several store sizes.
+bench:
+	$(PY) scripts/bench_search.py
+
 check-numbers:
 	$(PY) scripts/check_numbers.py
 

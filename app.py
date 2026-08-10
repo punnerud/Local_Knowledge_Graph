@@ -30,11 +30,27 @@ def _sse(event: dict) -> str:
 
 
 def make_backends() -> tuple:
-    """Build the default backends. Tests replace this."""
-    return (
-        backends.OllamaChat(backends.DEFAULT_CHAT_MODEL),
-        backends.OllamaEmbedding(backends.DEFAULT_EMBED_MODEL),
-    )
+    """Build the default backends. Tests replace this.
+
+    Set LKG_EMBED_BACKEND=hf to embed from inside a local model instead of from an
+    embedding endpoint, which is what makes a model with no embedding API usable and
+    lets you point at a specific depth:
+
+        LKG_EMBED_BACKEND=hf LKG_HF_MODEL=HuggingFaceTB/SmolLM2-135M \
+        LKG_HF_LAYER=blocks.-1 python app.py
+    """
+    chat = backends.OllamaChat(backends.DEFAULT_CHAT_MODEL)
+
+    if os.environ.get("LKG_EMBED_BACKEND") == "hf":
+        from layers import HiddenStateEmbedding
+
+        return chat, HiddenStateEmbedding(
+            os.environ.get("LKG_HF_MODEL", "HuggingFaceTB/SmolLM2-135M"),
+            layer=os.environ.get("LKG_HF_LAYER", "blocks.-1"),
+            pooling=os.environ.get("LKG_HF_POOLING", "last"),
+        )
+
+    return chat, backends.OllamaEmbedding(backends.DEFAULT_EMBED_MODEL)
 
 
 @app.route("/")
