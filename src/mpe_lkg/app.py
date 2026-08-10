@@ -266,13 +266,55 @@ def find_free_port(host: str, first: int, window: int = PORT_SEARCH_WINDOW) -> i
     )
 
 
+def banner(status: dict) -> str:
+    """What the app found, and what to do about it.
+
+    Written so the README does not have to explain the setup: the program that
+    knows what is installed is the one best placed to say what is missing.
+    """
+    lines = ["", "  Local Knowledge Graph"]
+
+    if not status["models"]:
+        lines += [
+            "",
+            f"  Ollama did not answer at {status['base_url']}.",
+            "",
+            "  This app runs a language model on your own machine through Ollama.",
+            "  1. Install it from https://ollama.com",
+            "  2. Pull a model:   ollama pull llama3.2:3b",
+            "  3. Start this again.",
+            "",
+            "  If Ollama runs elsewhere, set OLLAMA_URL to point at it.",
+        ]
+        return "\n".join(lines) + "\n"
+
+    if not status["ok"]:
+        lines += [
+            "",
+            f"  Ollama is running at {status['base_url']}, with: {', '.join(status['models'])}",
+            f"  {status['problem']}",
+            "",
+            "  The page will offer to download one, or:",
+            "    ollama pull llama3.2:3b",
+        ]
+        return "\n".join(lines) + "\n"
+
+    chat = status.get("chat_model") or "?"
+    embed = status.get("embedding_model") or f"{chat} (no embedding model installed)"
+    lines += [
+        "",
+        f"  chat model    {chat}",
+        f"  embeddings    {embed}",
+        f"  ollama        {status['base_url']}",
+        "",
+        "  Both are changeable in the page. 'mpe-lkg doctor' reports this without starting.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def run(host: str | None = None, port: int | None = None, debug: bool | None = None) -> None:
     """Start the server, after saying whether the model backend is actually there."""
-    status = backends.health(backends.DEFAULT_BASE_URL)
-    if not status["ok"]:
-        print(f"\n  {status['problem']}\n  {status['hint']}\n")
-    else:
-        print(f"\n  Ollama at {status['base_url']} — models: {', '.join(status['models'])}\n")
+    print(banner(backends.health(backends.DEFAULT_BASE_URL)))
 
     host = host or os.environ.get("LKG_HOST", "127.0.0.1")
     wanted = port or int(os.environ.get("LKG_PORT", "5100"))

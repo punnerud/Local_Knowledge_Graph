@@ -2,7 +2,7 @@
 """Fail loudly when a documented number stops being true.
 
 Prose drifts away from data silently. This turns every measurable claim in the
-README into a lookup against the JSON that produced it, so a claim that stops
+documentation into a lookup against the JSON that produced it, so a claim that stops
 holding breaks the build instead of quietly becoming a lie.
 
 Four rules the checks below follow:
@@ -35,6 +35,7 @@ from mpe_lkg.graph import cosine_similarity, strongest_path, top_similarities  #
 CLAIMS = "docs/claims/edge_spread.json"
 SEARCH = "docs/claims/search_bench.json"
 SWEEP = "docs/claims/layer_sweep.json"
+LOOPS = "docs/claims/loops.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -176,6 +177,67 @@ FILE_CHECKS = [
         1.0,
         0.001,
         "depth separates topics several times better than the first block",
+    ),
+    # The loop battery is ONE run of 24 questions, so it has no error bar of its
+    # own. These are therefore written as guards and comparisons rather than as
+    # point values: a rate pinned to three decimals from a single battery would be
+    # precision this measurement has not earned.
+    (
+        LOOPS,
+        # The guard that comes before every other number in that file. Elsewhere a
+        # first run reported a 58 % loop rate that was entirely the step extractor
+        # seeing its own output twice; a measurement of the harness nearly became a
+        # finding about the model.
+        lambda d: 1.0 if d["harness_audit"]["trustworthy"] else 0.0,
+        1.0,
+        0.001,
+        "the loop measurement does not manufacture its own duplicates",
+    ),
+    (
+        LOOPS,
+        lambda d: float(d["errors"]),
+        0.0,
+        0.0,
+        "every question in the loop battery completed",
+    ),
+    (
+        LOOPS,
+        # An upper bound, not a value. It catches a regression to the 21 % that a
+        # 0.90 threshold produced before inspection showed that bar was flagging
+        # ordinary progress as repetition.
+        lambda d: float(d["repeat_rate"]),
+        0.0,
+        0.15,
+        "repeated steps stay a small minority of all steps",
+    ),
+    (
+        LOOPS,
+        # The gate's actual question. Drift is the failure a repeat detector cannot
+        # see, and elsewhere it dominated; here it does not, which is what justifies
+        # building the detector at all. If this ever flips, that plan needs redoing.
+        lambda d: 1.0 if d["drift_rate"] <= d["repeat_rate"] else 0.0,
+        1.0,
+        0.001,
+        "drift does not dominate repetition, so a repeat detector is the right tool",
+    ),
+    (
+        LOOPS,
+        # The number that describes the experience rather than the steps: repeats
+        # cluster, so a small per-step rate still means a quarter of questions loop.
+        lambda d: float(d["runs_with_a_repeat_rate"]),
+        0.25,
+        0.20,
+        "roughly a quarter of questions produce at least one repeated step",
+    ),
+    (
+        LOOPS,
+        # Percolation check. Elsewhere the largest component swallowed 99 % of the
+        # points by k=6 and cluster purity fell to the random baseline, which would
+        # mean "the same" is not a threshold that can be chosen at all. Ours holds.
+        lambda d: max(row["largest_share"] for row in d["mutual_knn"] if row["k"] <= 4),
+        0.0,
+        0.15,
+        "the step graph does not percolate at k<=4, so similarity stays meaningful",
     ),
 ]
 
