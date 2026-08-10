@@ -27,7 +27,10 @@ import numpy as np
 import requests
 
 DEFAULT_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-DEFAULT_CHAT_MODEL = os.environ.get("LKG_CHAT_MODEL", "llama3.1:8b")
+# Empty means "use whatever chat model Ollama actually has". Setting LKG_CHAT_MODEL
+# is an override, not a default: hardcoding a name here is what told a user with a
+# perfectly good model installed to go and pull one they did not need.
+DEFAULT_CHAT_MODEL = os.environ.get("LKG_CHAT_MODEL", "")
 # Empty means "look at what Ollama actually has and pick something sensible".
 DEFAULT_EMBED_MODEL = os.environ.get("LKG_EMBED_MODEL", "")
 REQUEST_TIMEOUT = float(os.environ.get("LKG_TIMEOUT", "120"))
@@ -380,6 +383,79 @@ def list_models(base_url: str = DEFAULT_BASE_URL, *, session: requests.Session |
     return models
 
 
+# Only used to break a tie when several chat models are installed. Any installed
+# model beats a missing one, so this never causes a "not found".
+CHAT_PREFERENCE = ("llama3.1:8b", "llama3.2:3b", "qwen3", "mistral", "gemma3", "phi4")
+
+# Offered in the UI when Ollama has nothing usable. Sizes are what `ollama pull`
+# actually downloads, so the page can say what it is about to cost.
+SUGGESTED = [
+    {"name": "llama3.2:3b", "size": "2.0 GB", "role": "chat", "note": "good default"},
+    {"name": "llama3.1:8b", "size": "4.7 GB", "role": "chat", "note": "stronger, slower"},
+    {"name": "gemma3:1b", "size": "0.8 GB", "role": "chat", "note": "smallest usable"},
+    {"name": "nomic-embed-text", "size": "0.3 GB", "role": "embedding", "note": "recommended"},
+    {"name": "all-minilm", "size": "45 MB", "role": "embedding", "note": "tiny"},
+]
+
+
+def chat_models(base_url: str = DEFAULT_BASE_URL) -> list[str]:
+    """Installed models that can hold a conversation."""
+    return [m["name"] for m in list_models(base_url) if not m["is_embedding"]]
+
+
+def embedding_models(base_url: str = DEFAULT_BASE_URL) -> list[str]:
+    return [m["name"] for m in list_models(base_url) if m["is_embedding"]]
+
+
+def pick_chat_model(base_url: str = DEFAULT_BASE_URL, requested: str = "") -> str:
+    """Choose a chat model that is actually installed.
+
+    The embedding model has always been discovered rather than assumed; the chat
+    model was hardcoded, so a user with a perfectly good model installed under a
+    different name was told to pull one they did not need. An explicit request wins,
+    and is returned even when absent so the caller can report it honestly.
+    """
+    if requested:
+        return requested
+
+    available = chat_models(base_url)
+    if not available:
+        return DEFAULT_CHAT_MODEL or CHAT_PREFERENCE[0]
+
+    by_base = {name.split(":")[0]: name for name in available}
+    for preferred in CHAT_PREFERENCE:
+        if preferred in available:
+            return preferred
+        if preferred.split(":")[0] in by_base:
+            return by_base[preferred.split(":")[0]]
+    return sorted(available)[0]
+
+
+def pull_model(name: str, base_url: str = DEFAULT_BASE_URL):
+    """Stream ``ollama pull`` progress as dicts. Yields until the download ends."""
+    try:
+        response = requests.post(
+            f"{base_url.rstrip('/')}/api/pull",
+            json={"model": name, "stream": True},
+            stream=True,
+            timeout=(10, 3600),
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise BackendError(f"Could not start the download of '{name}'.", hint=str(exc)) from exc
+
+    for line in response.iter_lines():
+        if not line:
+            continue
+        try:
+            chunk = json.loads(line.decode("utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if chunk.get("error"):
+            raise BackendError(f"Ollama could not pull '{name}': {chunk['error']}")
+        yield chunk
+
+
 def health(base_url: str = DEFAULT_BASE_URL) -> dict:
     """Everything the UI needs to explain why nothing is happening."""
     models = list_models(base_url)
@@ -394,18 +470,27 @@ def health(base_url: str = DEFAULT_BASE_URL) -> dict:
         }
 
     names = {m["name"] for m in models}
-    chat_ok = DEFAULT_CHAT_MODEL in names or any(
-        n.split(":")[0] == DEFAULT_CHAT_MODEL.split(":")[0] for n in names
-    )
+    chat = pick_chat_model(base_url, DEFAULT_CHAT_MODEL)
+    chat_ok = chat in names or any(n.split(":")[0] == chat.split(":")[0] for n in names)
     if not chat_ok:
         return {
             "ok": False,
             "base_url": base_url,
             "models": sorted(names),
-            "problem": f"Ollama is running but does not have the chat model '{DEFAULT_CHAT_MODEL}'.",
-            "hint": f"Install it with:  ollama pull {DEFAULT_CHAT_MODEL}\n"
-            f"Or point the app at a model you already have by setting "
-            f"LKG_CHAT_MODEL to one of: {', '.join(sorted(names))}",
+            "problem": f"Ollama is running but does not have the chat model '{chat}'.",
+            "hint": f"Install it with:  ollama pull {chat}\n"
+            f"Or pick one you already have in the page, or set LKG_CHAT_MODEL to "
+            f"one of: {', '.join(sorted(names))}",
+            "chat_model": chat,
+            "embedding_model": "",
         }
 
-    return {"ok": True, "base_url": base_url, "models": sorted(names), "problem": "", "hint": ""}
+    return {
+        "ok": True,
+        "base_url": base_url,
+        "models": sorted(names),
+        "problem": "",
+        "hint": "",
+        "chat_model": chat,
+        "embedding_model": next(iter(embedding_models(base_url)), ""),
+    }

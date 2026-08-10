@@ -39,7 +39,7 @@ def make_backends() -> tuple:
         LKG_EMBED_BACKEND=hf LKG_HF_MODEL=HuggingFaceTB/SmolLM2-135M \
         LKG_HF_LAYER=blocks.-1 python app.py
     """
-    chat = backends.OllamaChat(backends.DEFAULT_CHAT_MODEL)
+    chat = backends.OllamaChat(_selected_chat())
 
     if os.environ.get("LKG_EMBED_BACKEND") == "hf":
         from .layers import HiddenStateEmbedding
@@ -50,7 +50,7 @@ def make_backends() -> tuple:
             pooling=os.environ.get("LKG_HF_POOLING", "last"),
         )
 
-    return chat, backends.OllamaEmbedding(backends.DEFAULT_EMBED_MODEL)
+    return chat, backends.OllamaEmbedding(_selected_embedding())
 
 
 @app.route("/")
@@ -62,6 +62,99 @@ def index():
 def health():
     """Why nothing is happening, in terms a user can act on."""
     return jsonify(backends.health(backends.DEFAULT_BASE_URL))
+
+
+def _selected_chat() -> str:
+    """The chat model in use: an explicit choice, else whatever is installed."""
+    return app.config.get("CHAT_MODEL") or backends.pick_chat_model(
+        backends.DEFAULT_BASE_URL, backends.DEFAULT_CHAT_MODEL
+    )
+
+
+def _selected_embedding() -> str:
+    return app.config.get("EMBED_MODEL", backends.DEFAULT_EMBED_MODEL)
+
+
+@app.route("/models", methods=["GET", "POST"])
+def models():
+    """List what Ollama has, and let the page choose among it.
+
+    Being told to pull a model you do not need, while three usable ones sit
+    installed, is the worst version of this app's first-run experience.
+    """
+    if request.method == "POST":
+        wanted = request.json or {}
+        installed = {m["name"] for m in backends.list_models(backends.DEFAULT_BASE_URL)}
+
+        for key, config_key in (("chat", "CHAT_MODEL"), ("embedding", "EMBED_MODEL")):
+            name = (wanted.get(key) or "").strip()
+            if not name:
+                continue
+            # Only ever select something Ollama actually reports. This value is
+            # sent straight to the model API, so it is not a free-text field.
+            if name not in installed:
+                return jsonify({"error": f"'{name}' is not installed"}), 400
+            app.config[config_key] = name
+
+    installed = backends.list_models(backends.DEFAULT_BASE_URL)
+    return jsonify({
+        "chat": [m["name"] for m in installed if not m["is_embedding"]],
+        "embedding": [m["name"] for m in installed if m["is_embedding"]],
+        "selected": {"chat": _selected_chat(), "embedding": _selected_embedding()},
+        "suggested": backends.SUGGESTED,
+        "ollama_url": backends.DEFAULT_BASE_URL,
+    })
+
+
+def _same_origin() -> bool:
+    """Refuse cross-site requests to the state-changing routes.
+
+    A page on the internet can POST to a service on your loopback address. Starting
+    a multi-gigabyte download has to be something *this* page asked for.
+    """
+    site = request.headers.get("Sec-Fetch-Site")
+    if site:
+        return site in ("same-origin", "none")
+    origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
+    return not origin or origin.startswith(request.host_url.rstrip("/"))
+
+
+@app.route("/pull", methods=["POST"])
+def pull():
+    """Download a model, streaming Ollama's progress to the page."""
+    if not _same_origin():
+        return jsonify({"error": "cross-origin request refused"}), 403
+
+    name = ((request.json or {}).get("model") or "").strip()
+    # An allowlist, not free text: this route causes a multi-gigabyte download, and
+    # the set of things a first-run user needs is small and known.
+    if name not in {entry["name"] for entry in backends.SUGGESTED}:
+        return jsonify({"error": f"'{name}' is not one of the offered models"}), 400
+
+    def generate():
+        try:
+            for chunk in backends.pull_model(name, backends.DEFAULT_BASE_URL):
+                yield _sse({"type": "pull", **chunk})
+            yield _sse({"type": "pull_done", "model": name})
+        except backends.BackendError as exc:
+            yield _sse({"type": "error", "message": str(exc), "hint": exc.hint})
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """A real answer, so the browser stops logging a 404 on every page load."""
+    dot = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+        '<rect width="32" height="32" rx="7" fill="#2a78d6"/>'
+        '<circle cx="10" cy="11" r="3.4" fill="#fff"/><circle cx="22" cy="9" r="2.6" fill="#fff"/>'
+        '<circle cx="16" cy="23" r="3" fill="#fff"/>'
+        '<path d="M10 11 L22 9 M10 11 L16 23 M22 9 L16 23" stroke="#fff" stroke-width="1.6" fill="none"/>'
+        "</svg>"
+    )
+    return Response(dot, mimetype="image/svg+xml", headers={"Cache-Control": "max-age=86400"})
 
 
 @app.route("/query", methods=["GET", "POST"])
