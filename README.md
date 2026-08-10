@@ -24,9 +24,12 @@ mpe-lkg
 
 Then open <http://localhost:5100>.
 
-`mpe-lkg doctor` reports whether Ollama is reachable, which models are installed, and the exact
-`ollama pull` command for anything missing. It exits non-zero when something is wrong, so it
-works in a script.
+The models are chosen for you from whatever Ollama has installed, and the page has a dropdown
+for each so you can change them. If Ollama has no chat model at all, the page lists a few with
+their download sizes and can fetch one.
+
+`mpe-lkg doctor` reports the same thing from the terminal, exiting non-zero when something is
+wrong so it works in a script.
 
 <details>
 <summary>Install from source instead</summary>
@@ -75,7 +78,7 @@ Everything is an environment variable, and the defaults work unchanged.
 | Variable | Default | Meaning |
 |---|---|---|
 | `OLLAMA_URL` | `http://localhost:11434` | Where Ollama is listening |
-| `LKG_CHAT_MODEL` | `llama3.1:8b` | The model that does the reasoning |
+| `LKG_CHAT_MODEL` | *(auto)* | The model that does the reasoning. Empty means: use an installed chat model. This is an override, not a default |
 | `LKG_EMBED_MODEL` | *(auto)* | Embedding model. Empty means: use an installed embedding model if there is one, otherwise fall back to the chat model |
 | `LKG_HOST` / `LKG_PORT` | `127.0.0.1` / `5100` | Where the app listens |
 | `LKG_DEBUG` | off | Set to `1` for the Flask debugger. Do not do this on a shared network |
@@ -172,8 +175,9 @@ installed, and what to pull. Errors are now shown in the page itself rather than
 browser console.
 
 **It says a model is not found.**
-The default chat model is `llama3.1:8b`. If you have a different one, either pull that, or
-set `LKG_CHAT_MODEL` to a model you already have.
+It should not: the app picks whichever chat and embedding models Ollama actually reports, and
+the page has a dropdown for each. If Ollama has no chat model at all, the page lists a few with
+their download sizes and can fetch one for you.
 
 **Ollama runs in Docker or on another machine.**
 Set `OLLAMA_URL`, and make sure Ollama binds beyond localhost (`OLLAMA_HOST=0.0.0.0`).

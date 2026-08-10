@@ -28,6 +28,20 @@
         .notice { color: #7a5c00; background: #fff6d8; border: 1px solid #e0c356;
                   padding: 6px 10px; margin-top: 8px; font-size: 13px; }
         #status { color: #666; font-size: 13px; min-height: 1.4em; margin-bottom: 10px; }
+        #models { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+                  font-size: 13px; color: #52514e; margin: 8px 0 4px; }
+        #models label { display: flex; align-items: center; gap: 5px; }
+        #models select { font: inherit; padding: 3px 6px; }
+        .setup { border: 1px solid #e0c356; background: #fff6d8; padding: 12px 14px;
+                 border-radius: 4px; margin-bottom: 14px; }
+        .setup h3 { margin: 0 0 6px; font-size: 15px; }
+        .setup table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+        .setup td { padding: 3px 12px 3px 0; }
+        .setup code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 3px; }
+        .setup button { padding: 4px 10px; font-size: 13px; margin: 0; }
+        .pull-progress { font-size: 13px; color: #52514e; margin-top: 8px; }
+        .pull-bar { height: 6px; background: rgba(0,0,0,.1); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        .pull-bar span { display: block; height: 100%; background: #2a78d6; width: 0; transition: width .2s; }
     </style>
 </head>
 <body>
@@ -38,10 +52,12 @@
     <input type="text" id="query" placeholder="e.g., What is the capital of France?">
     <button id="submit">Submit</button>
     <button id="download-img">Download PNG</button>
+    <div id="models"></div>
     <div id="status"></div>
 
     <div id="container">
         <div id="left-panel">
+            <div id="setup"></div>
             <div id="errors"></div>
             <div id="response"></div>
             <div id="similar"></div>
@@ -236,6 +252,131 @@
 
         submit.addEventListener('click', run);
         query.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+
+        // ---- model selection -------------------------------------------------
+        // Which model answers is the first thing a new user gets wrong, so it is
+        // shown and changeable here rather than only through an environment
+        // variable they have to read the README to discover.
+        const modelsBar = document.getElementById('models');
+        const setup = document.getElementById('setup');
+
+        function picker(id, label, options, selected) {
+            if (!options.length) return '';
+            const opts = options.map(name =>
+                `<option value="${name}"${name === selected ? ' selected' : ''}>${name}</option>`).join('');
+            return `<label>${label} <select id="${id}">${opts}</select></label>`;
+        }
+
+        async function loadModels() {
+            let data;
+            try {
+                data = await (await fetch('/models')).json();
+            } catch {
+                modelsBar.textContent = 'Could not reach the server.';
+                return;
+            }
+
+            modelsBar.innerHTML =
+                picker('pick-chat', 'Chat model', data.chat, data.selected.chat) +
+                picker('pick-embed', 'Embeddings', data.embedding, data.selected.embedding);
+
+            for (const [id, key] of [['pick-chat', 'chat'], ['pick-embed', 'embedding']]) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                el.addEventListener('change', async () => {
+                    await fetch('/models', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [key]: el.value })
+                    });
+                    status.textContent = `Now using ${el.value}.`;
+                });
+            }
+
+            setup.innerHTML = '';
+            if (!data.chat.length) showSetup(data);
+        }
+
+        function showSetup(data) {
+            // Nothing usable is installed. Say what to get, how big it is, and offer
+            // to fetch it -- rather than printing a command and leaving.
+            const rows = data.suggested.map(m => `
+                <tr>
+                  <td><code>${m.name}</code></td>
+                  <td>${m.size}</td>
+                  <td>${m.role} — ${m.note}</td>
+                  <td><button class="get" data-model="${m.name}">Get</button></td>
+                </tr>`).join('');
+
+            setup.innerHTML = `
+                <div class="setup">
+                  <h3>No chat model installed yet</h3>
+                  <p>This app talks to <a href="https://ollama.com" target="_blank"
+                     rel="noopener">Ollama</a> on <code>${data.ollama_url}</code>. Pick one to download,
+                     or run <code>ollama pull &lt;name&gt;</code> yourself.</p>
+                  <table>${rows}</table>
+                  <div class="pull-progress" hidden>
+                    <span class="pull-text"></span>
+                    <div class="pull-bar"><span></span></div>
+                  </div>
+                </div>`;
+
+            setup.querySelectorAll('.get').forEach(btn =>
+                btn.addEventListener('click', () => pullModel(btn.dataset.model, btn)));
+        }
+
+        function pullModel(name, button) {
+            const box = setup.querySelector('.pull-progress');
+            const text = box.querySelector('.pull-text');
+            const bar = box.querySelector('.pull-bar span');
+            box.hidden = false;
+            setup.querySelectorAll('.get').forEach(b => { b.disabled = true; });
+            text.textContent = `Starting ${name}…`;
+
+            // A plain fetch with a reader: EventSource cannot POST, and the model
+            // name has to be in a body the server can validate against its allowlist.
+            fetch('/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: name })
+            }).then(async (response) => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                for (;;) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split('\n\n');
+                    buffer = blocks.pop();
+                    for (const block of blocks) {
+                        const line = block.split('\n').find(l => l.startsWith('data: '));
+                        if (!line) continue;
+                        const event = JSON.parse(line.slice(6));
+                        if (event.type === 'error') {
+                            text.textContent = event.message;
+                            setup.querySelectorAll('.get').forEach(b => { b.disabled = false; });
+                            return;
+                        }
+                        if (event.type === 'pull_done') {
+                            text.textContent = `${name} is ready.`;
+                            bar.style.width = '100%';
+                            loadModels();
+                            return;
+                        }
+                        text.textContent = `${name}: ${event.status || 'working'}`;
+                        if (event.total) {
+                            bar.style.width = `${((event.completed || 0) / event.total * 100).toFixed(1)}%`;
+                        }
+                    }
+                }
+            }).catch(err => {
+                text.textContent = `Download failed: ${err}`;
+                setup.querySelectorAll('.get').forEach(b => { b.disabled = false; });
+            });
+        }
+
+        loadModels();
 
         downloadBtn.addEventListener('click', () => {
             // Export what is actually on screen. vis.js already draws to a canvas, so
