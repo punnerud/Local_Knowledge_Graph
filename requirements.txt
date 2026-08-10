@@ -1,6 +1,4 @@
-Flask
-numpy
-scikit-learn
-annoy
-networkx
-requests
+Flask>=3.0
+numpy>=1.24
+networkx>=3.0
+requests>=2.28

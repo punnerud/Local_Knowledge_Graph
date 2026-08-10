@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime artefacts written into the working directory
+embeddings.db
+embeddings.ann
+
+# data/claims/*.json is deliberately NOT ignored: those files are the record of
+# what was measured, and scripts/check_numbers.py verifies the README against them.
+
+.DS_Store

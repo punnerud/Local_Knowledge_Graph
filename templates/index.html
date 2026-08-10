@@ -2,55 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Local Llama Knowledge Graph</title>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/marked.umd.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/purify.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/vis-network.min.js') }}"></script>
     <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
-        #query { width: 100%; padding: 10px; margin-bottom: 10px; }
-        #submit { padding: 10px 20px; }
+        #query { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 20px; margin-right: 8px; }
+        button[disabled] { opacity: .5; cursor: not-allowed; }
         .step, .final-answer, .similar-item { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
-        #container { display: flex; }
-        #left-panel { flex: 1; margin-right: 20px; }
-        #graph { flex: 1; height: 600px; border: 1px solid #ddd; }
-        .inconsistency { 
-            margin-bottom: 20px; 
-            border: 1px solid #ffcccc; 
-            background-color: #fff0f0; 
-            padding: 10px; 
-        }
-        .inconsistency h3 { 
-            margin-top: 0; 
-            color: #cc0000; 
-        }
-        .strongest-path {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #f0f0f0;
-            border: 1px solid #ddd;
-            font-size: 0.9em;
-        }
-        .strongest-path h4 {
-            margin-top: 0;
-            margin-bottom: 5px;
-        }
-        .strongest-path ul {
-            margin: 0;
-            padding-left: 20px;
-        }
+        #container { display: flex; flex-wrap: wrap; gap: 20px; }
+        #left-panel { flex: 1 1 380px; min-width: 0; }
+        /* The reasoning column grows without bound, so pin the graph in view
+           instead of letting it scroll away after the first few steps. */
+        #graph { flex: 1 1 380px; height: 600px; border: 1px solid #ddd;
+                 position: sticky; top: 20px; align-self: flex-start; }
+        .strongest-path { background: #f0f0f0; padding: 10px; margin-top: 10px; }
+        .error-box { border: 1px solid #c0392b; background: #fdecea; color: #7b1f16;
+                     padding: 12px 14px; margin-bottom: 20px; border-radius: 4px; }
+        .error-box h3 { margin: 0 0 6px; }
+        .error-box pre { white-space: pre-wrap; margin: 6px 0 0; font-size: 13px; }
+        .notice { color: #7a5c00; background: #fff6d8; border: 1px solid #e0c356;
+                  padding: 6px 10px; margin-top: 8px; font-size: 13px; }
+        #status { color: #666; font-size: 13px; min-height: 1.4em; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <h1>Local Llama Knowledge Graph</h1>
-    <p>This application uses a local Llama model to answer queries, build embeddings, and create a knowledge graph for exploring related questions and answers.</p>
-    
+    <p>This application uses a local Llama model to answer queries, build embeddings, and create a
+       knowledge graph for exploring related questions and answers.</p>
+
     <input type="text" id="query" placeholder="e.g., What is the capital of France?">
     <button id="submit">Submit</button>
+    <button id="download-img">Download PNG</button>
+    <div id="status"></div>
 
     <div id="container">
         <div id="left-panel">
+            <div id="errors"></div>
             <div id="response"></div>
             <div id="similar"></div>
         </div>
@@ -60,189 +52,216 @@
     <script>
         const query = document.getElementById('query');
         const submit = document.getElementById('submit');
+        const downloadBtn = document.getElementById('download-img');
         const response = document.getElementById('response');
         const similar = document.getElementById('similar');
+        const errors = document.getElementById('errors');
+        const status = document.getElementById('status');
         const graphContainer = document.getElementById('graph');
 
         let network;
         let nodes = new vis.DataSet();
         let edges = new vis.DataSet();
+        // Only one stream may be open at a time. The previous version left the old
+        // EventSource running when you submitted again, so two reasoning runs raced
+        // into the same panel.
+        let eventSource = null;
 
         function initGraph() {
-            const data = {
-                nodes: nodes,
-                edges: edges
-            };
-            const options = {
-                nodes: {
-                    shape: 'dot',
-                    size: 30,
-                    font: {
-                        size: 12,
-                        color: '#000000'
-                    },
-                    borderWidth: 2
-                },
+            network = new vis.Network(graphContainer, { nodes, edges }, {
+                // A white halo on the label keeps it readable where it crosses an edge.
+                nodes: { shape: 'dot', size: 30, borderWidth: 2,
+                         font: { size: 12, color: '#000', strokeWidth: 4, strokeColor: '#ffffff' } },
                 edges: {
                     width: 2,
-                    font: {
-                        size: 12,
-                        align: 'middle'
-                    },
-                    color: {
-                        inherit: 'both'
-                    },
-                    scaling: {
-                        min: 1,
-                        max: 5,
-                        label: {
-                            enabled: true,
-                            min: 14,
-                            max: 30
-                        }
-                    }
+                    font: { size: 12, align: 'middle', strokeWidth: 3, strokeColor: '#ffffff' },
+                    color: { inherit: 'both' },
+                    smooth: { type: 'continuous' },
+                    scaling: { min: 1, max: 5, label: { enabled: true, min: 14, max: 30 } }
                 },
                 physics: {
-                    enabled: true,
-                    barnesHut: {
-                        gravitationalConstant: -2000,
-                        centralGravity: 0.3,
-                        springLength: 95,
-                        springConstant: 0.04,
-                        damping: 0.09,
-                        avoidOverlap: 0.1
-                    },
-                    forceAtlas2Based: {
-                        gravitationalConstant: -50,
-                        centralGravity: 0.01,
-                        springConstant: 0.08,
-                        springLength: 100,
-                        damping: 0.4,
-                        avoidOverlap: 0
-                    },
-                    solver: 'forceAtlas2Based'
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: { springLength: 220, avoidOverlap: 0.6, gravitationalConstant: -120 },
+                    stabilization: { iterations: 300 }
                 }
-            };
-            network = new vis.Network(graphContainer, data, options);
+            });
+            // Fitting during an update captures a half-settled layout, which leaves the
+            // graph as a tight clump in the middle of the canvas. Fit once it has come
+            // to rest instead -- and raise the zoom ceiling, because fit() refuses to
+            // magnify past 100% by default and a handful of nodes then sits in a
+            // corner of a mostly empty canvas.
+            network.on('stabilized', () => network.fit({ animation: false, maxZoomLevel: 3 }));
         }
-
         initGraph();
 
-        submit.addEventListener('click', () => {
+        function renderMarkdown(text) {
+            // The content is model-generated and lands in innerHTML, so it is sanitised.
+            return DOMPurify.sanitize(marked.parse(text || ''));
+        }
+
+        function showError(message, hint) {
+            const box = document.createElement('div');
+            box.className = 'error-box';
+            box.innerHTML = '<h3></h3><pre></pre>';
+            box.querySelector('h3').textContent = message;
+            box.querySelector('pre').textContent = hint || '';
+            errors.appendChild(box);
+        }
+
+        function setBusy(busy) {
+            submit.disabled = busy;
+            submit.textContent = busy ? 'Thinking…' : 'Submit';
+        }
+
+        function displayStrongestPath(path, weights, avgSimilarity) {
+            if (!path || path.length < 2) return '<p>No valid path found.</p>';
+            let html = '<h4>Strongest Path:</h4><ul>';
+            for (let i = 0; i < path.length - 1; i++) {
+                html += `<li>${path[i]} &rarr; ${path[i + 1]} (Similarity: ${weights[i].toFixed(4)})</li>`;
+            }
+            html += `</ul><p>Overall Path Similarity (geometric mean): ${avgSimilarity.toFixed(4)}</p>`;
+            return html;
+        }
+
+        function updateGraph(graphData) {
+            const incoming = new Set(graphData.nodes.map(n => n.id));
+            graphData.nodes.forEach(node => {
+                if (nodes.get(node.id)) { nodes.update(node); } else { nodes.add(node); }
+            });
+            nodes.getIds().filter(id => !incoming.has(id)).forEach(id => nodes.remove(id));
+            edges.clear();
+            edges.add(graphData.edges);
+            network.fit();
+        }
+
+        function appendPanel(className, heading, data) {
+            const div = document.createElement('div');
+            div.className = className;
+            const h = document.createElement('h3');
+            h.textContent = heading;
+            div.appendChild(h);
+            const body = document.createElement('div');
+            body.innerHTML = renderMarkdown(data.content);
+            div.appendChild(body);
+            if (data.truncated) {
+                const note = document.createElement('div');
+                note.className = 'notice';
+                note.textContent = 'This step was shortened: the model kept answering past the length limit.';
+                div.appendChild(note);
+            }
+            // A single node has no path; saying "No valid path found" there reads as
+            // a failure when it is just the first step.
+            if (data.path_data && data.path_data.strongest_path.length > 1) {
+                const pathDiv = document.createElement('div');
+                pathDiv.className = 'strongest-path';
+                pathDiv.innerHTML = displayStrongestPath(
+                    data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
+                div.appendChild(pathDiv);
+            }
+            response.appendChild(div);
+        }
+
+        function run() {
+            const userQuery = query.value.trim();
+            if (!userQuery) return;
+
+            if (eventSource) { eventSource.close(); eventSource = null; }
             response.innerHTML = '';
             similar.innerHTML = '';
+            errors.innerHTML = '';
             nodes.clear();
             edges.clear();
-            const userQuery = query.value;
+            setBusy(true);
+            status.textContent = 'Connecting to the model…';
 
-            const eventSource = new EventSource(`/query?query=${encodeURIComponent(userQuery)}`);
+            eventSource = new EventSource(`/query?query=${encodeURIComponent(userQuery)}`);
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'step') {
-                    const stepDiv = document.createElement('div');
-                    stepDiv.className = 'step';
-                    stepDiv.innerHTML = `
-                        <h3>Step ${data.step}: ${data.title}</h3>
-                        ${marked.parse(data.content)}
-                    `;
-                    
-                    // Add strongest path
-                    if (data.path_data) {
-                        const pathDiv = document.createElement('div');
-                        pathDiv.className = 'strongest-path';
-                        pathDiv.innerHTML = displayStrongestPath(data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
-                        stepDiv.appendChild(pathDiv);
-                    }
-                    
-                    response.appendChild(stepDiv);
+                    status.textContent = `Step ${data.step}…`;
+                    appendPanel('step', `Step ${data.step}: ${data.title}`, data);
+                    if (data.graph) updateGraph(data.graph);
 
-                    // Update graph
-                    if (data.graph) {
-                        updateGraph(data.graph);
-                    }
                 } else if (data.type === 'final') {
-                    const finalDiv = document.createElement('div');
-                    finalDiv.className = 'final-answer';
-                    finalDiv.innerHTML = `
-                        <h3>Final Answer</h3>
-                        ${marked.parse(data.content)}
-                    `;
-                    
-                    // Add strongest path for final answer
-                    if (data.path_data) {
-                        const pathDiv = document.createElement('div');
-                        pathDiv.className = 'strongest-path';
-                        pathDiv.innerHTML = displayStrongestPath(data.path_data.strongest_path, data.path_data.path_weights, data.path_data.avg_similarity);
-                        finalDiv.appendChild(pathDiv);
-                    }
-                    
-                    response.appendChild(finalDiv);
+                    appendPanel('final-answer', 'Final Answer', data);
+                    if (data.graph) updateGraph(data.graph);
 
-                    // Update graph
-                    if (data.graph) {
-                        updateGraph(data.graph);
-                    }
                 } else if (data.type === 'similar') {
-                    similar.innerHTML = '<h2>Related Questions and Answers</h2>';
+                    similar.innerHTML = '';
+                    if (!data.items.length) return;
+                    const heading = document.createElement('h2');
+                    heading.textContent = 'Related Questions and Answers';
+                    similar.appendChild(heading);
                     data.items.forEach(item => {
-                        const similarDiv = document.createElement('div');
-                        similarDiv.className = 'similar-item';
-                        similarDiv.innerHTML = `<h3>${item[3] ? 'Question' : 'Answer'} (Similarity: ${item[2].toFixed(4)})</h3><p>${item[1]}</p>`;
-                        similar.appendChild(similarDiv);
+                        const div = document.createElement('div');
+                        div.className = 'similar-item';
+                        const h = document.createElement('h3');
+                        h.textContent = `${item.is_question ? 'Question' : 'Answer'} `
+                                      + `(Similarity: ${item.similarity.toFixed(4)})`;
+                        const p = document.createElement('p');
+                        p.textContent = item.text;
+                        div.appendChild(h);
+                        div.appendChild(p);
+                        similar.appendChild(div);
                     });
-                } else if (data.type === 'inconsistency') {
-                    const inconsistencyDiv = document.createElement('div');
-                    inconsistencyDiv.className = 'inconsistency';
-                    inconsistencyDiv.innerHTML = `<h3>Inconsistency Detected</h3><p>${data.message}</p>`;
-                    response.appendChild(inconsistencyDiv);
-                    
-                    // Reset the graph
-                    nodes.clear();
-                    edges.clear();
+
+                } else if (data.type === 'error') {
+                    showError(data.message, data.hint);
+                    status.textContent = '';
+
                 } else if (data.type === 'done') {
+                    const model = data.embedding ? `${data.embedding.model} (${data.embedding.dim}d)` : 'unknown';
+                    status.textContent = `Done in ${data.total_time.toFixed(1)}s · `
+                                       + `${data.steps} steps · embeddings: ${model}`;
+
+                } else if (data.type === 'done_stream') {
+                    setBusy(false);
                     eventSource.close();
+                    eventSource = null;
                 }
             };
 
-            eventSource.onerror = (error) => {
-                console.error('EventSource failed:', error);
-                eventSource.close();
+            eventSource.onerror = () => {
+                // EventSource retries silently by default, so say something and stop.
+                if (eventSource) { eventSource.close(); eventSource = null; }
+                setBusy(false);
+                status.textContent = '';
+                showError('Lost the connection to the server.',
+                          'Check that the app is still running, then try again. '
+                        + 'Visit /health to see whether Ollama is reachable.');
             };
+        }
+
+        submit.addEventListener('click', run);
+        query.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+
+        downloadBtn.addEventListener('click', () => {
+            // Export what is actually on screen. vis.js already draws to a canvas, so
+            // reading that canvas gives the user their own layout -- re-plotting the
+            // graph server-side would hand back a different picture than the one
+            // they are looking at.
+            const canvas = graphContainer.querySelector('canvas');
+            if (!canvas) return;
+            const composed = document.createElement('canvas');
+            composed.width = canvas.width;
+            composed.height = canvas.height;
+            const ctx = composed.getContext('2d');
+            ctx.fillStyle = '#ffffff';           // canvas is transparent; PNG needs a ground
+            ctx.fillRect(0, 0, composed.width, composed.height);
+            ctx.drawImage(canvas, 0, 0);
+            composed.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'knowledge-graph.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
         });
-
-        function updateGraph(graphData) {
-            // Update nodes
-            graphData.nodes.forEach(node => {
-                if (nodes.get(node.id)) {
-                    nodes.update(node);
-                } else {
-                    nodes.add(node);
-                }
-            });
-
-            // Update edges
-            edges.clear(); // Clear existing edges before adding new ones
-            graphData.edges.forEach(edge => {
-                edges.add(edge);
-            });
-
-            // Fit the network to view all nodes
-            network.fit();
-        }
-
-        function displayStrongestPath(path, weights, avgSimilarity) {
-            if (!path || !weights || path.length === 0 || weights.length === 0) {
-                return '<p>No valid path found.</p>';
-            }
-            let pathHtml = '<h4>Strongest Path:</h4><ul>';
-            for (let i = 0; i < path.length - 1; i++) {
-                pathHtml += `<li>${path[i]} → ${path[i+1]} (Similarity: ${weights[i].toFixed(4)})</li>`;
-            }
-            pathHtml += `</ul><p>Overall Path Similarity (Weighted Average): ${avgSimilarity.toFixed(4)}</p>`;
-            return pathHtml;
-        }
     </script>
 </body>
 </html>
