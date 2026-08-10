@@ -17,6 +17,8 @@ concurrency:
 
 jobs:
   test:
+    # Explicit, so branch protection can require this exact context.
+    name: macOS
     runs-on: macos-latest
 
     steps:

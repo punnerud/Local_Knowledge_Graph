@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   test:
+    # Explicit, so branch protection can require this exact context.
+    name: Windows
     runs-on: windows-latest
 
     steps:

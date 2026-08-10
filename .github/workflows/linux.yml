@@ -20,6 +20,10 @@ concurrency:
 
 jobs:
   test:
+    # Named explicitly so the check context is unambiguous. Three workflows with a
+    # job called "test" produce three checks called "test", and branch protection
+    # cannot then require a specific one.
+    name: Linux ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
