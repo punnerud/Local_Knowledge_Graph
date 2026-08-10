@@ -88,7 +88,11 @@ class TestRendering:
             run_query(page, server)
             state = graph_state(page)
 
-        assert len(state["nodes"]) == 6
+        # Six reasoning steps plus the answer. The answer is its own node because it
+        # is written from the graph's strongest thread rather than lifted from the
+        # last step -- when it *is* the last step's text, that node is relabelled
+        # instead, which test_stream covers.
+        assert len(state["nodes"]) == 7
         assert state["edges"], "similarity edges must be drawn"
         known = {n["id"] for n in state["nodes"]}
         for edge in state["edges"]:

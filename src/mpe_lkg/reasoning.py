@@ -9,6 +9,7 @@ page where nothing ever appears.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from collections.abc import Iterator
@@ -17,6 +18,10 @@ from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
 
 MAX_STEPS = 20
+# Wall clock, not a step count. A hard step cap stops a run that is still getting
+# somewhere and lets a slow one run forever; a budget bounds the wait a person
+# actually experiences, and lets a productive run keep going until it is spent.
+TIME_BUDGET = float(os.environ.get("LKG_TIME_BUDGET", "120"))
 MIN_STEPS = 5
 MAX_STEP_CHARS = 700
 # How many times a single step may be re-asked before we take what we were given.
@@ -82,6 +87,48 @@ def _short_title(title: str, content: str, fallback: str) -> str:
     return cut
 
 
+ANSWER_PROMPT = (
+    "Question: {question}\n\n"
+    "This is the strongest thread through your own reasoning:\n{thread}\n\n"
+    "Answer the question now, in one or two sentences. State the answer itself. Do not "
+    "describe what you considered, do not hedge, and do not add caveats. If the question "
+    "cannot be answered as asked, say plainly why."
+)
+
+
+def _spine(node_ids: list[str], labels: list[str], vectors, top_k: int = 2) -> list[int]:
+    """Indices of the steps on the strongest path, in order.
+
+    This is the graph earning its place: of everything the model said, these are the
+    steps that hang together, and they are what the answer gets written from.
+    """
+    if len(node_ids) < 2:
+        return list(range(len(node_ids)))
+    graph = serialize_graph_data(build_graph(node_ids, labels, vectors, top_k=top_k))
+    path, _, _ = strongest_path(graph)
+    if not path:
+        return list(range(len(node_ids)))
+    position = {node_id: i for i, node_id in enumerate(node_ids)}
+    return sorted(position[p] for p in path if p in position)
+
+
+def _synthesise(chat: ChatBackend, question: str, thread: list[str]) -> str:
+    """One call that turns the thread into an answer. Empty string if it fails."""
+    if not thread:
+        return ""
+    numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(thread, 1))
+    try:
+        raw = "".join(chat.stream(
+            [{"role": "user", "content": ANSWER_PROMPT.format(question=question, thread=numbered)}],
+            300,
+        ))
+    except BackendError:
+        # A failed synthesis must not lose the run: the caller falls back to the
+        # last step, which is what this replaced.
+        return ""
+    return " ".join(raw.split()).strip()
+
+
 def reason(
     prompt: str,
     *,
@@ -91,6 +138,8 @@ def reason(
     max_steps: int = MAX_STEPS,
     min_steps: int = MIN_STEPS,
     top_k: int = 2,
+    synthesise: bool = True,
+    time_budget: float = TIME_BUDGET,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -101,6 +150,7 @@ def reason(
     node_ids: list[str] = []
     labels: list[str] = []
     vectors: list = []
+    step_texts: list[str] = []
     total_thinking_time = 0.0
     final_answer: str | None = None
     step_events = 0
@@ -116,8 +166,13 @@ def reason(
         )
         return serialized, path_data
 
+    deadline = time.time() + time_budget
     try:
         while len(node_ids) < max_steps:
+            if time.time() > deadline:
+                # Out of budget. Stop reasoning and go answer with what there is,
+                # rather than truncating mid-thought with nothing to show.
+                break
             step_number = len(node_ids) + 1
             step_json = None
             truncated = False
@@ -153,6 +208,7 @@ def reason(
 
             node_id = f"Step{step_number}"
             node_ids.append(node_id)
+            step_texts.append(content)
             labels.append(f"Step {step_number}: {_short_title(title, content, node_id)}")
             vectors.append(embedder.embed([content])[0])
             if store is not None:
@@ -191,22 +247,30 @@ def reason(
                     }
                 )
 
-        if final_answer is not None and node_ids:
-            # The final answer *is* the last step. Relabel that node instead of adding
-            # a second one holding the same text: two nodes over identical content
-            # produce a similarity of exactly 1.00 between them, which is the
-            # duplicate pair visible in this project's own example screenshot.
+        if synthesise:
+            # Ask the graph's strongest thread for an answer, rather than taking
+            # whatever the last step happened to say. Measured on the baseline: the
+            # answer to "What is the capital of France?" did not contain the word
+            # Paris. It was a footnote about regional capitals, because the last step
+            # is where a prompt that rewards exploring alternatives naturally ends.
+            spine = _spine(node_ids, labels, vectors, top_k=top_k)
+            started = time.time()
+            synthesised = _synthesise(chat, prompt, [step_texts[i] for i in spine])
+            total_thinking_time += time.time() - started
+            if synthesised:
+                final_answer = synthesised
+
+        if final_answer is None:
+            final_answer = step_texts[-1] if step_texts else "No final answer."
+
+        if node_ids and step_texts and final_answer == step_texts[-1]:
+            # The answer is the last step's own text -- either because synthesis was
+            # off, or because it failed and this is the fallback. Either way, relabel
+            # that node rather than adding a second one holding identical text: two
+            # nodes over the same content produce an edge of exactly 1.00 between
+            # them, which is the duplicate pair from this project's own screenshot.
             labels[-1] = f"Final Answer: {_short_title('', final_answer, 'final')}"
         else:
-            if final_answer is None:
-                messages.append(
-                    {"role": "user", "content": "Please provide the final answer based on your reasoning above."}
-                )
-                started = time.time()
-                raw = _collect(chat, messages, 300)
-                total_thinking_time += time.time() - started
-                final_answer = str(extract_json(raw).get("content", raw)).strip() or "No final answer."
-
             node_ids.append(f"Step{len(node_ids) + 1}")
             labels.append(f"Final Answer: {_short_title('', final_answer, 'final')}")
             vectors.append(embedder.embed([final_answer])[0])

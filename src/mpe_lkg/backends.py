@@ -237,9 +237,23 @@ class OllamaChat:
         self.base_url = base_url.rstrip("/")
         self.temperature = temperature
         self._session = session or requests.Session()
+        # What this backend has actually cost, as Ollama counted it.
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.calls = 0
 
     def describe(self) -> dict:
-        return {"kind": "ollama", "model": self.model, "base_url": self.base_url}
+        return {
+            "kind": "ollama",
+            "model": self.model,
+            "base_url": self.base_url,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "calls": self.calls,
+        }
+
+    def reset_usage(self) -> None:
+        self.prompt_tokens = self.completion_tokens = self.calls = 0
 
     def stream(self, messages: list[dict], max_tokens: int, *, schema: dict | None = None) -> Iterator[str]:
         payload = {
@@ -288,6 +302,13 @@ class OllamaChat:
                 continue
             if chunk.get("error"):
                 raise BackendError(f"Ollama reported an error: {chunk['error']}")
+            # Ollama reports what it actually tokenised in the final chunk. Counting
+            # that beats dividing characters by four: "the context halved" is a claim
+            # worth making exactly rather than approximately.
+            if chunk.get("done"):
+                self.prompt_tokens += int(chunk.get("prompt_eval_count", 0))
+                self.completion_tokens += int(chunk.get("eval_count", 0))
+                self.calls += 1
             piece = chunk.get("message", {}).get("content", "")
             if piece:
                 produced = True
