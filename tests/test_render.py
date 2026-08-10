@@ -157,7 +157,9 @@ class TestInteraction:
             page.goto(server.url)
             page.fill("#query", "capital of France")
             page.press("#query", "Enter")
-            page.wait_for_selector(".step", timeout=30_000)
+            # state="attached", not visible: once the run finishes the steps fold
+            # away behind the summary, so they exist without being on screen.
+            page.wait_for_selector(".step", state="attached", timeout=30_000)
             page.wait_for_function("() => !document.querySelector('#submit').disabled", timeout=30_000)
             assert page.locator(".step").count() >= 1
 
@@ -197,3 +199,89 @@ class TestTruncationNotice:
         with LiveServer([step("Long", "y" * 900)], tmp_path, repeat_last=True) as server:
             run_query(page, server)
             assert page.locator(".notice").count() >= 1
+
+
+class TestProgressAndCollapse:
+    """Fase D: progress while it runs, and a folded summary once it is done."""
+
+    def test_progress_bar_advances_and_finishes(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path, delay=0.3) as server:
+            page.goto(server.url)
+            page.fill("#query", "q")
+            page.click("#submit")
+            page.wait_for_function(
+                "() => document.querySelector('#progress').dataset.state === 'running'", timeout=10_000
+            )
+            page.wait_for_function(
+                "() => document.querySelector('#progress').dataset.state === 'done'", timeout=30_000
+            )
+            width = page.evaluate("() => document.querySelector('#progress-bar span').style.width")
+        assert width == "100%"
+
+    def test_a_failed_run_does_not_report_success(self, page, tmp_path):
+        with LiveServer([], tmp_path) as server:   # backend with nothing to say
+            run_query(page, server)
+            assert page.evaluate("() => document.querySelector('#progress').dataset.state") == "error"
+
+    def test_thinking_folds_into_one_line(self, page, tmp_path):
+        """Question and answer stay in view; the reasoning collapses behind a count."""
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+
+            toggle = page.locator(".thinking-toggle")
+            assert toggle.count() == 1
+            assert "5 thinking steps" in toggle.inner_text()
+            assert page.locator("#steps").is_hidden()
+            # The answer is never hidden -- that is the point of folding.
+            assert page.locator(".final-answer").is_visible()
+
+    def test_the_summary_expands_and_folds_again(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+            page.click(".thinking-toggle")
+            assert page.locator("#steps").is_visible()
+            page.click(".thinking-toggle")
+            assert page.locator("#steps").is_hidden()
+
+
+class TestGraphToLog:
+    def test_clicking_a_node_opens_that_step(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+            page.wait_for_timeout(800)
+            # Click through vis.js's own event, which is what a real click triggers.
+            page.evaluate("() => network.emit('click', {nodes: ['Step3'], edges: []})")
+
+            assert page.locator("#steps").is_visible(), "the log must open to show the step"
+            assert page.locator("#step-3[data-focus='true']").count() == 1
+
+    def test_the_close_button_folds_the_log_again(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+            page.wait_for_timeout(800)
+            page.evaluate("() => network.emit('click', {nodes: ['Step2'], edges: []})")
+            page.click("#step-2 .step-close")
+
+            assert page.locator("#steps").is_hidden()
+            assert page.locator("#step-2[data-focus='true']").count() == 0
+
+    def test_hovering_a_node_highlights_the_path_that_reached_it(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+            page.wait_for_timeout(800)
+            page.evaluate("() => network.emit('hoverNode', {node: 'Step4'})")
+            highlighted = page.evaluate(
+                "() => nodes.get().filter(n => n.borderWidth === 4).map(n => n.id)"
+            )
+            page.evaluate("() => network.emit('blurNode', {node: 'Step4'})")
+            cleared = page.evaluate("() => nodes.get().filter(n => n.borderWidth === 4).length")
+
+        assert "Step4" in highlighted, "the hovered node is on its own path"
+        assert len(highlighted) > 1, "the path back to the start should light up too"
+        assert cleared == 0, "leaving the node must clear the highlight"
+
+    def test_steps_carry_the_id_the_graph_looks_them_up_by(self, page, tmp_path):
+        with LiveServer(normal_script(), tmp_path) as server:
+            run_query(page, server)
+            ids = page.evaluate("() => [...document.querySelectorAll('#steps .step')].map(e => e.id)")
+        assert ids == [f"step-{i}" for i in range(1, len(ids) + 1)]
