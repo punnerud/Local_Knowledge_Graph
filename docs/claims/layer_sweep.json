@@ -1,0 +1,44 @@
+{
+  "provenance": "measured",
+  "measured_at": "2026-08-10T10:46:38+00:00",
+  "model": "HuggingFaceTB/SmolLM2-135M",
+  "n_blocks": 30,
+  "dim": 576,
+  "pooling": "last",
+  "final_norm_applied": true,
+  "layers": {
+    "blocks.0": {
+      "within_topic": 0.9976432065169016,
+      "across_topic": 0.9957032010511115,
+      "separation": 0.0019400054657900956,
+      "mean_abs": 0.9961249232292175
+    },
+    "blocks.7": {
+      "within_topic": 0.8954060484965642,
+      "across_topic": 0.8336415079732736,
+      "separation": 0.06176454052329061,
+      "mean_abs": 0.8470685482025146
+    },
+    "blocks.15": {
+      "within_topic": 0.9141085694233576,
+      "across_topic": 0.8629755915866958,
+      "separation": 0.05113297783666182,
+      "mean_abs": 0.8740914463996887
+    },
+    "blocks.22": {
+      "within_topic": 0.8931873053312301,
+      "across_topic": 0.7799073490831587,
+      "separation": 0.11327995624807141,
+      "mean_abs": 0.8045334219932556
+    },
+    "blocks.29": {
+      "within_topic": 0.9263378192981084,
+      "across_topic": 0.7784764518340429,
+      "separation": 0.14786136746406553,
+      "mean_abs": 0.8106202483177185
+    }
+  },
+  "best_layer": "blocks.29",
+  "best_separation": 0.14786136746406553,
+  "first_layer_separation": 0.0019400054657900956
+}

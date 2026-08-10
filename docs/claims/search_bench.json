@@ -1,0 +1,12 @@
+{
+  "provenance": "measured",
+  "machine": "Darwin arm64 python3.12.12",
+  "dim": 768,
+  "top_k": 5,
+  "all_pairs_20_steps_ms": 0.02154102548956871,
+  "exact_topk_1k_ms": 0.017042038962244987,
+  "exact_topk_100k_ms": 3.289832966402173,
+  "annoy_returns_self_first": false,
+  "annoy_returns_k_results": 1,
+  "annoy_version": "1.17.3"
+}
