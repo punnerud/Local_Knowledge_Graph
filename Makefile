@@ -1,15 +1,17 @@
 PY := .venv/bin/python
 
-.PHONY: all venv lint test test-ollama measure check-numbers run clean
+.PHONY: all venv lint test test-ollama measure sweep bench check-numbers run clean
 
 # One gate. Lint, tests and the documented numbers pass together or the build is
 # not green -- keeping the numbers in a separate optional target is how a README
 # drifts away from what the code actually does.
 all: lint test check-numbers
 
+# pyproject.toml is the single source of truth for dependencies; there is no
+# requirements.txt to drift out of sync with it.
 venv:
 	uv venv --python 3.12 .venv
-	uv pip install --python $(PY) -r requirements-dev.txt
+	uv pip install --python $(PY) -e ".[dev]"
 	$(PY) -m playwright install chromium --only-shell
 
 lint:
@@ -22,7 +24,7 @@ test:
 test-ollama:
 	$(PY) -m pytest tests/ -q -m ollama
 
-# Regenerates data/claims/*.json from a live Ollama.
+# Regenerates docs/claims/*.json from a live Ollama.
 measure:
 	$(PY) scripts/measure.py
 

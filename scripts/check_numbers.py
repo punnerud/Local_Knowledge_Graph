@@ -32,9 +32,9 @@ import numpy as np  # noqa: E402
 
 from mpe_lkg.graph import cosine_similarity, strongest_path, top_similarities  # noqa: E402
 
-CLAIMS = "data/claims/edge_spread.json"
-SEARCH = "data/claims/search_bench.json"
-SWEEP = "data/claims/layer_sweep.json"
+CLAIMS = "docs/claims/edge_spread.json"
+SEARCH = "docs/claims/search_bench.json"
+SWEEP = "docs/claims/layer_sweep.json"
 
 # (file, extractor, expected, tolerance, label)
 #

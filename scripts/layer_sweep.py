@@ -108,7 +108,7 @@ def main() -> int:
         "best_separation": results[best]["separation"],
         "first_layer_separation": results[requested[0]]["separation"],
     }
-    out = ROOT / "data" / "claims" / "layer_sweep.json"
+    out = ROOT / "docs" / "claims" / "layer_sweep.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {out.relative_to(ROOT)}")

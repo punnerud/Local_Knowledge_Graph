@@ -162,7 +162,7 @@ def write_claims() -> None:
         claims["annoy_returns_k_results"] = len(neighbours)
         claims["annoy_version"] = "1.17.3"
 
-    out = pathlib.Path(__file__).resolve().parent.parent / "data" / "claims" / "search_bench.json"
+    out = pathlib.Path(__file__).resolve().parent.parent / "docs" / "claims" / "search_bench.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(claims, indent=2) + "\n")
     print(f"\nwrote {out.name}")

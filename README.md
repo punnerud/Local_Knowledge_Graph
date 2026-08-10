@@ -6,7 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
 [![Python](https://img.shields.io/pypi/pyversions/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
 
-![Example](example.png)
+![Example](docs/example.png)
 
 Ask a local Llama model a question, watch it reason step by step, and see the steps drawn as a
 knowledge graph where the edges are the semantic similarity between them.
@@ -82,7 +82,7 @@ Everything is an environment variable, and the defaults work unchanged.
 
 The edges in the graph are cosine similarities, so how much they vary decides whether the
 picture tells you anything. Measured over four unrelated six-step reasoning chains
-(`make measure`, recorded in `data/claims/edge_spread.json`):
+(`make measure`, recorded in `docs/claims/edge_spread.json`):
 
 | Model | Dimensions | Mean edge weight | Coefficient of variation |
 |---|---|---|---|
@@ -151,13 +151,13 @@ make venv          # uv-based environment, including a headless browser for the 
 make all           # ruff + pytest + the documented numbers, in one gate
 make test          # unit, stream and browser tests; no model needed
 make test-ollama   # the tests that need a live Ollama
-make measure       # re-measure the embedding-model table into data/claims/
+make measure       # re-measure the embedding-model table into docs/claims/
 make sweep         # re-measure the per-layer separation table (needs torch)
 make bench         # exact scan vs an approximate index, at several store sizes
 ```
 
 `make all` runs `scripts/check_numbers.py`, which resolves every measurable claim in this
-README to a value in `data/claims/`. If a number here stops being true, the build fails
+README to a value in `docs/claims/`. If a number here stops being true, the build fails
 instead of the README quietly becoming wrong. Some of its checks are ground truths computed
 from arithmetic rather than from a previous run, because a consistency gate cannot detect a
 consistent error.

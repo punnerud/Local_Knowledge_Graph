@@ -32,7 +32,7 @@ def free_port() -> int:
 
 def main() -> int:
     question = sys.argv[1] if len(sys.argv) > 1 else "Can you give the 5 biggest cities in population size in order?"
-    out = pathlib.Path(sys.argv[2] if len(sys.argv) > 2 else "example.png")
+    out = pathlib.Path(sys.argv[2] if len(sys.argv) > 2 else "docs/example.png")
 
     app_module.app.config["DB_PATH"] = str(ROOT / "embeddings.db")
     port = free_port()

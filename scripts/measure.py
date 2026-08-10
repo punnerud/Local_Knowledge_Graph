@@ -12,7 +12,7 @@ sampling noise of whatever wrote the steps. Several independent topics are measu
 so the observed spread across them can set the tolerance in check_numbers.py --
 a single run would give a number with no error bar.
 
-Writes data/claims/edge_spread.json. Run with: make measure
+Writes docs/claims/edge_spread.json. Run with: make measure
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def main() -> int:
             f"cv={result['cv']:.4f}+/-{result['cv_stdev']:.4f}  edges={result['n']}"
         )
 
-    out = ROOT / "data" / "claims" / "edge_spread.json"
+    out = ROOT / "docs" / "claims" / "edge_spread.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(results, indent=2) + "\n")
     print(f"\nwrote {out.relative_to(ROOT)}")
