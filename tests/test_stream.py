@@ -10,7 +10,7 @@ import json
 import pytest
 from conftest import normal_script, read_events, step
 
-from backends import BackendError, DeterministicEmbedding
+from mpe_lkg.backends import BackendError, DeterministicEmbedding
 
 
 class FailingEmbedding:
@@ -174,7 +174,7 @@ class TestMalformedModelOutput:
 
 class TestHealthRoute:
     def test_health_reports_a_problem_when_ollama_is_absent(self, flask_client, monkeypatch):
-        import backends
+        from mpe_lkg import backends
 
         monkeypatch.setattr(backends, "list_models", lambda *a, **k: [])
         client, _ = flask_client(normal_script())
@@ -184,7 +184,7 @@ class TestHealthRoute:
         assert "ollama serve" in payload["hint"]
 
     def test_health_names_the_missing_model(self, flask_client, monkeypatch):
-        import backends
+        from mpe_lkg import backends
 
         monkeypatch.setattr(
             backends, "list_models",

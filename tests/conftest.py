@@ -1,12 +1,15 @@
 import json
-import os
+import pathlib
 import sys
 
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Works whether or not the package is installed, and identically on Windows.
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
-from backends import DeterministicEmbedding, ScriptedChat  # noqa: E402
+from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat  # noqa: E402
 
 
 def step(title: str, content: str, next_action: str = "continue") -> str:
@@ -31,7 +34,7 @@ def embedder():
 @pytest.fixture
 def flask_client(tmp_path, embedder):
     """A Flask test client wired to fakes, with a per-test database."""
-    import app as app_module
+    import mpe_lkg.app as app_module
 
     def make_client(script: list[str], *, repeat_last: bool = False, embed=None):
         chat = ScriptedChat(script, repeat_last=repeat_last)

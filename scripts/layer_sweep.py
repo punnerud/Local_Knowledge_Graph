@@ -22,6 +22,7 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
@@ -58,7 +59,7 @@ def main() -> int:
     requested = sys.argv[2:]
 
     try:
-        from layers import MultiLayerProbe, describe_layers
+        from mpe_lkg.layers import MultiLayerProbe, describe_layers
     except ImportError as exc:
         print(exc)
         return 1
@@ -69,7 +70,7 @@ def main() -> int:
         labels.extend([topic] * len(steps))
 
     if not requested:
-        from layers import HiddenStateEmbedding
+        from mpe_lkg.layers import HiddenStateEmbedding
 
         probe = HiddenStateEmbedding(model_name, layer="blocks.-1")
         n = describe_layers(probe.model)["n_blocks"]

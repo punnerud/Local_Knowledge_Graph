@@ -15,12 +15,13 @@ import sys
 import threading
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 from playwright.sync_api import sync_playwright  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
-import app as app_module  # noqa: E402
+import mpe_lkg.app as app_module  # noqa: E402
 
 
 def free_port() -> int:

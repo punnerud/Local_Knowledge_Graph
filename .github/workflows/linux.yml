@@ -1,0 +1,89 @@
+# Linux — the primary gate, and the cheap one. Full Python matrix, browser tests
+# included, plus the documented-numbers check.
+#
+# The package is pure Python (one py3-none-any wheel), so nothing is compiled here;
+# what the three OS workflows actually prove is that the *runtime* behaves the same
+# everywhere — path handling, SQLite file locking, threading, and the browser render.
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # A superseded PR run is wasted runner time. A push to main is not cancelled:
+  # when CI goes red we want to know which commit did it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # Browsers are ~100 MB and never change between runs; downloading them on
+      # every job is the single most wasteful thing this workflow could do.
+      # The key includes the Playwright version, so a bump invalidates it.
+      - name: Playwright version
+        id: pw
+        run: echo "version=$(python -c 'import playwright; print(playwright.__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install browser
+        # --only-shell is the headless shell alone: about a third of the download,
+        # and the tests never open a headed browser.
+        run: python -m playwright install chromium --only-shell --with-deps
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+
+      - name: Install browser dependencies
+        # System libraries are not in the cached browser directory.
+        run: python -m playwright install-deps chromium
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Test
+        run: python -m pytest tests/ -q -m "not ollama"
+
+      # One gate: lint, tests and the documented numbers pass together. Keeping this
+      # as a separate optional target is how a README drifts from what the code does.
+      - name: Check documented numbers
+        run: python scripts/check_numbers.py
+
+      - name: Build the wheel
+        run: |
+          pip install build
+          python -m build
+
+      - name: Wheel installs and runs clean
+        run: |
+          python -m venv /tmp/fresh
+          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          /tmp/fresh/bin/mpe-lkg --version
+          /tmp/fresh/bin/python -c "import mpe_lkg; a = mpe_lkg.create_app(); assert a.test_client().get('/').status_code == 200"

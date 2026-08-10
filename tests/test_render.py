@@ -15,7 +15,7 @@ import pytest
 from conftest import normal_script, step
 from werkzeug.serving import make_server
 
-from backends import DeterministicEmbedding, ScriptedChat
+from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
 
 pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import sync_playwright  # noqa: E402
@@ -29,7 +29,7 @@ def free_port() -> int:
 
 class LiveServer:
     def __init__(self, script, tmp_path, *, repeat_last=False, dim=48, delay=0.0):
-        import app as app_module
+        import mpe_lkg.app as app_module
 
         chat = ScriptedChat(script, repeat_last=repeat_last, delay=delay)
         app_module.app.config["BACKENDS_FACTORY"] = lambda: (chat, DeterministicEmbedding(dim))

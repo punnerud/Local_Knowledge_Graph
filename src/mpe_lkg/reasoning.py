@@ -13,8 +13,8 @@ import re
 import time
 from collections.abc import Iterator
 
-from backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
-from graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
+from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
+from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
 
 MAX_STEPS = 20
 MIN_STEPS = 5

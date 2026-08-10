@@ -6,7 +6,7 @@ Each test here pins something the original implementation got wrong silently.
 import numpy as np
 import pytest
 
-from graph import (
+from mpe_lkg.graph import (
     build_graph,
     cosine_similarity,
     edge_weight_spread,

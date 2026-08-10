@@ -1,0 +1,63 @@
+# Windows — the platform most likely to find a real bug in this codebase.
+#
+# Not because of the language, but because of the file semantics: an open SQLite
+# handle cannot be deleted on Windows, path separators differ, and the temporary
+# directories pytest hands out are cleaned up differently. Those are exactly the
+# places a store-backed web app breaks.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Playwright version
+        id: pw
+        shell: bash
+        run: echo "version=$(python -c 'import playwright; print(playwright.__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install browser
+        run: python -m playwright install chromium --only-shell
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Test
+        run: python -m pytest tests/ -q -m "not ollama"
+
+      - name: Check documented numbers
+        run: python scripts/check_numbers.py
+
+      - name: Console script works
+        run: mpe-lkg --version

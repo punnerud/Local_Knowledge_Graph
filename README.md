@@ -1,34 +1,70 @@
 # Local Knowledge Graph
 
+[![Linux](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/linux.yml/badge.svg?branch=main)](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/linux.yml)
+[![macOS](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/macos.yml/badge.svg?branch=main)](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/macos.yml)
+[![Windows](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/punnerud/Local_Knowledge_Graph/actions/workflows/windows.yml)
+[![PyPI](https://img.shields.io/pypi/v/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
+[![Python](https://img.shields.io/pypi/pyversions/mpe-lkg.svg)](https://pypi.org/project/mpe-lkg/)
+
 ![Example](example.png)
 
 Ask a local Llama model a question, watch it reason step by step, and see the steps drawn as a
 knowledge graph where the edges are the semantic similarity between them.
 
-## Requirements
+Everything runs on your machine. Nothing is uploaded anywhere.
 
-- Python 3.10 or newer
-- [Ollama](https://ollama.com) running locally
-- One chat model and, ideally, one embedding model
+## Install
+
+```bash
+pip install mpe-lkg
+mpe-lkg
+```
+
+Then open <http://localhost:5100>.
+
+`mpe-lkg doctor` reports whether Ollama is reachable, which models are installed, and the exact
+`ollama pull` command for anything missing. It exits non-zero when something is wrong, so it
+works in a script.
+
+<details>
+<summary>Install from source instead</summary>
+
+```bash
+git clone https://github.com/punnerud/Local_Knowledge_Graph
+cd Local_Knowledge_Graph
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/mpe-lkg
+```
+
+`python app.py` still works from a clone as it always has — it is a shim over the same code.
+
+</details>
+
+<details>
+<summary>Use it from Python</summary>
+
+```python
+from mpe_lkg import create_app, health
+
+print(health())            # {'ok': True, 'models': [...], ...}
+create_app().run(port=5100)
+```
+
+</details>
+
+### You also need Ollama
+
+[Ollama](https://ollama.com) running locally, with one chat model and, ideally, one embedding
+model:
 
 ```bash
 ollama pull llama3.2:3b        # or llama3.1:8b, or any chat model you already have
 ollama pull nomic-embed-text   # optional but recommended, see "Which embedding model" below
 ```
 
-## Installation
-
-```bash
-git clone https://github.com/punnerud/Local_Knowledge_Graph
-cd Local_Knowledge_Graph
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python app.py
-```
-
-Then open <http://localhost:5100>.
-
-If the app cannot find what it needs it says so on startup and at
-<http://localhost:5100/health>, naming the exact `ollama pull` command that fixes it.
+Python 3.10 or newer. The wheel is `py3-none-any`, so there is nothing to compile and the same
+artefact serves Linux, macOS and Windows — all three are tested on every push.
 
 ## Configuration
 
@@ -74,7 +110,7 @@ pip install torch transformers
 LKG_EMBED_BACKEND=hf \
 LKG_HF_MODEL=HuggingFaceTB/SmolLM2-135M \
 LKG_HF_LAYER=blocks.-1 \
-python app.py
+mpe-lkg
 ```
 
 Layers are addressed structurally, not by a per-architecture path: `blocks.0`, `blocks.12`,
@@ -148,11 +184,12 @@ browser. Both are bounded now, and the stream sends a heartbeat while the model 
 
 | File | Responsibility |
 |---|---|
-| `app.py` | Flask routes and server-sent-event framing |
-| `backends.py` | Chat and embedding backends, model discovery, health checks |
-| `reasoning.py` | The step-by-step loop |
-| `graph.py` | Similarity, graph construction, strongest path |
-| `store.py` | SQLite storage and exact nearest-neighbour search |
+| `src/mpe_lkg/app.py` | Flask routes and server-sent-event framing |
+| `src/mpe_lkg/backends.py` | Chat and embedding backends, model discovery, health checks |
+| `src/mpe_lkg/reasoning.py` | The step-by-step loop |
+| `src/mpe_lkg/graph.py` | Similarity, graph construction, strongest path |
+| `src/mpe_lkg/store.py` | SQLite storage and exact nearest-neighbour search |
+| `src/mpe_lkg/layers.py` | Embeddings read from inside a model |
 
 The strongest path maximises the product of the similarities along it, which is the same as
 minimising a sum of `-log(similarity)`. Those costs are non-negative, so Dijkstra gives the
@@ -194,3 +231,12 @@ sort.
 If the store ever does grow past a few hundred thousand vectors, the argument that changes
 first is memory, not speed — 100 000 × 768 × 4 bytes is about 300 MB held in RAM — and the
 answer then is a memory-mapped index, not a faster query.
+
+## Licence
+
+MIT.
+
+---
+
+<sub>Published to PyPI as `mpe-lkg` — **M**orten **P**unnerud-**E**ngelstad **L**ocal
+**K**nowledge **G**raph.</sub>

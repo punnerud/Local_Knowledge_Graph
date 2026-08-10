@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 from conftest import normal_script, read_events
 
-import backends
-from backends import OllamaEmbedding
+from mpe_lkg import backends
+from mpe_lkg.backends import OllamaEmbedding
 
 pytestmark = pytest.mark.ollama
 
@@ -86,7 +86,7 @@ class TestDimensionIndependence:
 
     def test_switching_model_does_not_corrupt_the_store(self, tmp_path):
         """Mixed-dimension rows in one database used to break search silently."""
-        from store import EmbeddingStore
+        from mpe_lkg.store import EmbeddingStore
 
         store = EmbeddingStore(str(tmp_path / "mixed.db"))
         small = OllamaEmbedding(require("all-minilm"))
@@ -132,7 +132,7 @@ class TestRealChat:
                 schema=backends.STEP_SCHEMA,
             )
         )
-        from reasoning import extract_json
+        from mpe_lkg.reasoning import extract_json
 
         parsed = extract_json(text)
         assert set(parsed) >= {"title", "content", "next_action"}

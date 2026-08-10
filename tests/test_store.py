@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from conftest import normal_script, read_events
 
-from store import EmbeddingStore
+from mpe_lkg.store import EmbeddingStore
 
 
 def unit(rng, dim=32):

@@ -24,10 +24,11 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
-import backends  # noqa: E402
-from graph import build_graph, edge_weight_spread  # noqa: E402
+from mpe_lkg import backends  # noqa: E402
+from mpe_lkg.graph import build_graph, edge_weight_spread  # noqa: E402
 
 # Four unrelated topics, each a plausible chain of reasoning steps.
 TOPICS = {

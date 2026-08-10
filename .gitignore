@@ -13,3 +13,8 @@ embeddings.ann
 # what was measured, and scripts/check_numbers.py verifies the README against them.
 
 .DS_Store
+
+# Build artefacts
+dist/
+build/
+*.egg-info/

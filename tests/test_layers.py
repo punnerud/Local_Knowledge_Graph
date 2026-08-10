@@ -11,7 +11,7 @@ import pytest
 torch = pytest.importorskip("torch")
 nn = torch.nn
 
-from layers import (  # noqa: E402
+from mpe_lkg.layers import (  # noqa: E402
     describe_layers,
     find_block_stack,
     find_final_norm,
@@ -170,7 +170,7 @@ HF_MODEL = "HuggingFaceTB/SmolLM2-135M"
 @pytest.fixture(scope="module")
 def probe():
     pytest.importorskip("transformers")
-    from layers import HiddenStateEmbedding
+    from mpe_lkg.layers import HiddenStateEmbedding
 
     try:
         return HiddenStateEmbedding(HF_MODEL, layer="blocks.-1")
@@ -219,14 +219,14 @@ class TestRealModel:
 
     def test_different_layers_give_different_answers(self, probe):
         """If two layers agree exactly, the hook is not tapping where it claims."""
-        from layers import MultiLayerProbe
+        from mpe_lkg.layers import MultiLayerProbe
 
         out = MultiLayerProbe(HF_MODEL, ["blocks.0", "blocks.-1"]).embed(["a probe sentence"])
         assert not np.allclose(out["blocks.0"], out["blocks.-1"], atol=1e-3)
 
     def test_depth_separates_topics_better_than_the_first_layer(self, probe):
         """The whole point of the feature, as an assertion."""
-        from layers import MultiLayerProbe
+        from mpe_lkg.layers import MultiLayerProbe
         from scripts.layer_sweep import separation
 
         texts = ["The capital of France is Paris.", "Paris is the French capital.",
@@ -239,7 +239,7 @@ class TestRealModel:
         assert last > first
 
     def test_a_module_off_the_forward_path_is_reported(self, probe):
-        from layers import HiddenStateEmbedding
+        from mpe_lkg.layers import HiddenStateEmbedding
 
         stray = HiddenStateEmbedding.__new__(HiddenStateEmbedding)
         stray.__dict__.update(probe.__dict__)

@@ -1,8 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mpe-lkg"
+version = "0.2.0"
+description = "Local Knowledge Graph: a local LLM reasons step by step, and the steps become a graph."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Morten Punnerud-Engelstad" }]
+keywords = ["llm", "ollama", "knowledge-graph", "embeddings", "reasoning", "visualization"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Flask",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+
+# Pure Python, so the wheel is py3-none-any: one artefact for Linux, macOS and
+# Windows, with nothing to compile at install time.
+dependencies = [
+    "Flask>=3.0",
+    "numpy>=1.24",
+    "networkx>=3.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+# Reading embeddings from inside a model. Heavy, and genuinely optional.
+layers = ["torch>=2.1", "transformers>=4.44"]
+dev = ["pytest>=8.0", "playwright>=1.48", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/punnerud/Local_Knowledge_Graph"
+Issues = "https://github.com/punnerud/Local_Knowledge_Graph/issues"
+
+[project.scripts]
+mpe-lkg = "mpe_lkg.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mpe_lkg"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/mpe_lkg", "tests", "scripts", "README.md", "Makefile", "pyproject.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 markers = [
     "ollama: needs a running Ollama with the models named in the README",
     "hf: needs torch, transformers and a downloadable Hugging Face model",
+    "browser: needs a Playwright browser",
 ]
 filterwarnings = ["error::DeprecationWarning"]
 
@@ -16,3 +73,4 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]
+"app.py" = ["E402"]

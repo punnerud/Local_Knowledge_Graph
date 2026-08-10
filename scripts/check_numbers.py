@@ -25,11 +25,12 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
 
-from graph import cosine_similarity, strongest_path, top_similarities  # noqa: E402
+from mpe_lkg.graph import cosine_similarity, strongest_path, top_similarities  # noqa: E402
 
 CLAIMS = "data/claims/edge_spread.json"
 SEARCH = "data/claims/search_bench.json"

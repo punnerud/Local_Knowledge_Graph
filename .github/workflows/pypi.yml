@@ -1,0 +1,83 @@
+# Publish to PyPI on a version tag.
+#
+# The package is pure Python, so there is exactly one artefact to build -- a
+# py3-none-any wheel that serves Linux, macOS and Windows on every supported
+# interpreter. No cibuildwheel matrix, no cross-compilation, nothing to sign per
+# platform.
+#
+# Publishing is gated on the three OS workflows being green for the same commit;
+# a tag is not a reason to skip the tests.
+name: PyPI
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and check only, do not upload"
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" build twine
+
+      - name: Lint
+        run: python -m ruff check .
+
+      # Browser tests are skipped here: the OS workflows already ran them for this
+      # commit. What must not be skipped is that the code imports and behaves.
+      - name: Test
+        run: python -m pytest tests/ -q -m "not ollama" --ignore=tests/test_render.py
+
+      - name: Build
+        run: python -m build
+
+      - name: Check metadata
+        run: python -m twine check dist/*
+
+      - name: The tag must match the version in pyproject
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "tag=$TAG  pyproject=$PKG"
+          test "$TAG" = "$PKG" || { echo "::error::tag $TAG does not match version $PKG"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.dry_run == false
+    environment: pypi
+    permissions:
+      id-token: write   # for trusted publishing, once it is configured
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Remove this once Trusted Publishing is set up for the project on PyPI,
+          # which removes the need to hold a token at all.
+          password: ${{ secrets.PYPI_API_TOKEN }}
