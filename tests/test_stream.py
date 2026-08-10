@@ -124,17 +124,21 @@ class TestIssueTwoNeverTerminates:
         assert steps and all(e["truncated"] for e in steps)
         assert all(len(e["content"]) <= 704 for e in steps)
 
-    def test_model_that_always_wants_to_stop_still_terminates(self, flask_client):
+    def test_a_model_that_is_done_is_allowed_to_be_done(self, flask_client):
+        """The floor that forced five steps is gone, and that was the point of it.
+
+        A reported transcript reached its answer at step 4 and was pushed on with
+        "you have given 4 of 5 steps", producing three more steps that added
+        nothing. Length is decided by whether anything new is still arriving.
+        """
         finish = step("Done", "Answering immediately.", "final_answer")
         client, _ = flask_client([finish], repeat_last=True)
 
         events = read_events(client.get("/query?query=q"))
 
         assert events[-1]["type"] == "done_stream"
-        # It is nudged up to the minimum before being allowed to finish. The last
-        # node is the final answer, so it is not also announced as a step.
         final = [e for e in events if e["type"] == "final"][0]
-        assert len(final["graph"]["nodes"]) >= 5
+        assert len(final["graph"]["nodes"]) <= 3, "a one-step answer must not be padded to five"
 
     def test_step_count_is_bounded(self, flask_client):
         never_finish = step("Go on", "Still reasoning about the problem.")
@@ -290,3 +294,63 @@ class TestTimeBudget:
         steps = [e for e in events if e["type"] == "step"]
         assert 0 < len(steps) < 20, "the budget, not the step cap, ended this"
         assert [e for e in events if e["type"] == "final"], "it still answers with what it has"
+
+
+class TestNoveltyDrivenLength:
+    """Length is decided by whether anything new is arriving, not by a constant."""
+
+    def test_a_model_stuck_on_one_move_is_stopped(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+
+        events = read_events(client.get("/query?query=q"))
+        repeats = [e for e in events if e["type"] == "repeat"]
+
+        assert repeats, "the second identical move must be refused"
+        assert len([e for e in events if e["type"] == "step"]) <= 2
+        assert events[-1]["type"] == "done_stream"
+
+    def test_a_refused_step_says_what_it_repeated(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+        events = read_events(client.get("/query?query=q"))
+
+        first = [e for e in events if e["type"] == "repeat"][0]
+        assert "step 1" in first["reason"]
+        assert first["attempt"] == 1
+
+    def test_the_model_is_told_what_it_already_covered(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, chat = flask_client([repeat], repeat_last=True)
+        read_events(client.get("/query?query=q"))
+
+        redirect = [m for call in chat.calls for m in call if "already covered" in m.get("content", "")]
+        assert redirect, "a coverage map, not just a prohibition"
+        assert "somewhere none of those go" in redirect[0]["content"]
+
+    def test_distinct_steps_are_never_refused(self, flask_client):
+        """The guard that matters: a healthy run must pass through untouched."""
+        client, _ = flask_client(normal_script())
+        events = read_events(client.get("/query?query=q"))
+
+        assert not [e for e in events if e["type"] == "repeat"]
+        assert len([e for e in events if e["type"] == "step"]) == 5
+
+    def test_how_often_a_retry_helped_is_reported(self, flask_client):
+        """Whether asking again works is a claim, so it is counted rather than assumed."""
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+        done = [e for e in read_events(client.get("/query?query=q")) if e["type"] == "done"][0]
+
+        assert done["novelty_retries"] >= 1
+        assert done["novelty_retries_that_helped"] == 0, "this model never varies, by construction"
+
+    def test_detection_can_be_turned_off(self, flask_client):
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        repeat = step("Same Move", "Considering alternatives once more.")
+        events = list(reason("q", chat=ScriptedChat([repeat], repeat_last=True),
+                             embedder=DeterministicEmbedding(32),
+                             detect_repeats=False, synthesise=False))
+        assert not [e for e in events if e["type"] == "repeat"]

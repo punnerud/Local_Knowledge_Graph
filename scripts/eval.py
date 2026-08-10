@@ -103,15 +103,18 @@ def grade(answer: str, spec: dict) -> bool | None:
     return any(good.lower() in text for good in spec["expect"])
 
 
-def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0) -> dict:
+def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detect=True) -> dict:
     chat.reset_usage()
     started = time.time()
     steps, answer, error = [], "", None
 
-    for event in reason(spec["q"], chat=chat, embedder=embedder,
-                        synthesise=synthesise, time_budget=budget):
+    repeats = 0
+    for event in reason(spec["q"], chat=chat, embedder=embedder, synthesise=synthesise,
+                        time_budget=budget, detect_repeats=detect):
         if event["type"] == "step":
             steps.append(event["content"])
+        elif event["type"] == "repeat":
+            repeats += 1
         elif event["type"] == "final":
             answer = event["content"]
         elif event["type"] == "error":
@@ -129,6 +132,7 @@ def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0) -> di
         "completion_tokens": usage["completion_tokens"],
         "calls": usage["calls"],
         "seconds": round(time.time() - started, 2),
+        "repeats_caught": repeats,
         "error": error,
     }
 
@@ -155,6 +159,7 @@ def summarise(results: list[dict]) -> dict:
         "completion_tokens": stat("completion_tokens"),
         "calls": stat("calls"),
         "seconds": stat("seconds"),
+        "repeats_caught": sum(r.get("repeats_caught", 0) for r in results),
         "errors": sum(1 for r in results if r["error"]),
     }
 
@@ -169,6 +174,8 @@ def main() -> int:
     parser.add_argument("--no-synthesis", action="store_true",
                         help="take the last step as the answer, as the baseline did")
     parser.add_argument("--budget", type=float, default=120.0, help="seconds per run")
+    parser.add_argument("--no-repeat-detection", action="store_true",
+                        help="keep every step, however much it repeats")
     args = parser.parse_args()
 
     if not backends.chat_models():
@@ -186,8 +193,8 @@ def main() -> int:
     for n, spec in enumerate(specs, 1):
         marks = []
         for _ in range(args.repeats):
-            result = run_once(spec, chat, embedder,
-                              synthesise=not args.no_synthesis, budget=args.budget)
+            result = run_once(spec, chat, embedder, synthesise=not args.no_synthesis,
+                              budget=args.budget, detect=not args.no_repeat_detection)
             results.append(result)
             marks.append("-" if result["correct"] is None else ("." if result["correct"] else "x"))
         print(f"  [{n:>2}/{len(specs)}] {''.join(marks)}  {spec['group']:<11} {spec['q'][:52]}", flush=True)

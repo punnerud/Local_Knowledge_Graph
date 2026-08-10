@@ -16,13 +16,21 @@ from collections.abc import Iterator
 
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
+from .novelty import assess
 
 MAX_STEPS = 20
 # Wall clock, not a step count. A hard step cap stops a run that is still getting
 # somewhere and lets a slow one run forever; a budget bounds the wait a person
 # actually experiences, and lets a productive run keep going until it is spent.
 TIME_BUDGET = float(os.environ.get("LKG_TIME_BUDGET", "120"))
-MIN_STEPS = 5
+# No floor. A fixed minimum forced padding: in a reported transcript the model
+# reached the answer at step 4 and was pushed on with "you have given 4 of 5
+# steps", producing three more that added nothing. Length is decided by whether
+# anything new is still arriving.
+MIN_STEPS = 0
+# Consecutive repeats that end a run. One is a stumble; two in a row is the model
+# out of ideas, and continuing past that is how a transcript fills with restatement.
+DRY_LIMIT = 2
 MAX_STEP_CHARS = 700
 # How many times a single step may be re-asked before we take what we were given.
 # The original code retried without bound and without incrementing the step
@@ -112,6 +120,24 @@ def _spine(node_ids: list[str], labels: list[str], vectors, top_k: int = 2) -> l
     return sorted(position[p] for p in path if p in position)
 
 
+def _redirect(novelty, step_texts: list[str]) -> str:
+    """Name the ground already covered, and ask for somewhere else.
+
+    A coverage map rather than a prohibition: "do not repeat yourself" gives the
+    model nothing to aim at, while a list of what is already done leaves the
+    unexplored part by subtraction.
+    """
+    covered = "\n".join(f"- {t[:90]}" for t in step_texts[-6:])
+    what = novelty.describe()
+    return (
+        f"That step {what}. You have already covered:\n{covered}\n\n"
+        "Give a step that goes somewhere none of those go: a different method, a "
+        "different assumption to test, or a part of the question not yet touched. "
+        "If there is genuinely nothing left to explore, set next_action to "
+        "final_answer."
+    )
+
+
 def _synthesise(chat: ChatBackend, question: str, thread: list[str]) -> str:
     """One call that turns the thread into an answer. Empty string if it fails."""
     if not thread:
@@ -126,7 +152,14 @@ def _synthesise(chat: ChatBackend, question: str, thread: list[str]) -> str:
         # A failed synthesis must not lose the run: the caller falls back to the
         # last step, which is what this replaced.
         return ""
-    return " ".join(raw.split()).strip()
+
+    answer = " ".join(raw.split()).strip()
+    if answer.startswith("{"):
+        # Some models answer this prompt in the step schema anyway, having been
+        # asked for JSON on every previous turn. Take the content rather than
+        # showing the user a serialised object.
+        answer = str(extract_json(answer).get("content", answer)).strip()
+    return answer
 
 
 def reason(
@@ -140,6 +173,8 @@ def reason(
     top_k: int = 2,
     synthesise: bool = True,
     time_budget: float = TIME_BUDGET,
+    detect_repeats: bool = True,
+    max_novelty_retries: int = 3,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -150,7 +185,11 @@ def reason(
     node_ids: list[str] = []
     labels: list[str] = []
     vectors: list = []
+    title_vectors: list = []
     step_texts: list[str] = []
+    dry_streak = 0
+    retries_spent = 0
+    retries_that_helped = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
     step_events = 0
@@ -206,18 +245,55 @@ def reason(
             title = str(step_json.get("title", "")).strip()
             next_action = str(step_json.get("next_action", "continue")).strip()
 
+            content_vec = embedder.embed([content])[0]
+            title_vec = embedder.embed([title or content[:60]])[0]
+
+            novelty = (
+                assess(title_vec, content_vec, title_vectors, vectors, labels)
+                if detect_repeats else assess(title_vec, content_vec, [], [], [])
+            )
+
+            if novelty.is_repeat and retries_spent < max_novelty_retries:
+                # Do not keep the step. Tell the model what ground it has already
+                # covered and ask for somewhere else, rather than letting the
+                # transcript fill with the same move under a new heading.
+                retries_spent += 1
+                dry_streak += 1
+                messages.append({"role": "user", "content": _redirect(novelty, step_texts)})
+                yield {
+                    "type": "repeat",
+                    "step": step_number,
+                    "title": title,
+                    "reason": novelty.describe(),
+                    "attempt": retries_spent,
+                }
+                if dry_streak >= DRY_LIMIT:
+                    # Twice in a row is the model out of ideas. Continuing is how a
+                    # transcript fills with restatement.
+                    break
+                continue
+
+            if novelty.is_repeat:
+                # Out of retries. Keep it, but say so rather than hiding it.
+                dry_streak += 1
+            else:
+                if retries_spent:
+                    retries_that_helped += 1
+                dry_streak = 0
+
             node_id = f"Step{step_number}"
             node_ids.append(node_id)
             step_texts.append(content)
             labels.append(f"Step {step_number}: {_short_title(title, content, node_id)}")
-            vectors.append(embedder.embed([content])[0])
+            vectors.append(content_vec)
+            title_vectors.append(title_vec)
             if store is not None:
-                store.add(content, vectors[-1], model=embedder.describe().get("model", ""))
+                store.add(content, content_vec, model=embedder.describe().get("model", ""))
 
             messages.append({"role": "assistant", "content": json.dumps(step_json)})
             wants_to_finish = next_action == "final_answer" or "boxed" in content.lower()
 
-            if wants_to_finish and len(node_ids) >= min_steps:
+            if wants_to_finish and len(node_ids) >= max(min_steps, 1):
                 # This step *is* the answer. Announcing it as a step and then again as
                 # the final answer would print the same text twice on the page and
                 # draw two nodes over identical content.
@@ -289,6 +365,8 @@ def reason(
             "total_time": total_thinking_time,
             "steps": step_events,
             "edge_spread": edge_weight_spread(serialized),
+            "novelty_retries": retries_spent,
+            "novelty_retries_that_helped": retries_that_helped,
             "embedding": embedder.describe(),
             "chat": chat.describe(),
         }
