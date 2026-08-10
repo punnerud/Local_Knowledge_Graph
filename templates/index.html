@@ -192,7 +192,7 @@
                     similar.innerHTML = '';
                     if (!data.items.length) return;
                     const heading = document.createElement('h2');
-                    heading.textContent = 'Related Questions and Answers';
+                    heading.textContent = `Related Questions and Answers (${data.store_size} stored)`;
                     similar.appendChild(heading);
                     data.items.forEach(item => {
                         const div = document.createElement('div');

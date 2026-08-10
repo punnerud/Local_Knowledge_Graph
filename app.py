@@ -75,7 +75,12 @@ def query():
 
         def worker():
             try:
-                store.clear()
+                # The store deliberately accumulates across questions. It used to be
+                # wiped at the start of every request, which made "Related Questions
+                # and Answers" structurally unable to show anything but the current
+                # run's own steps. Set LKG_RESET_DB=1 to go back to a clean slate.
+                if os.environ.get("LKG_RESET_DB") == "1":
+                    store.clear()
                 query_vector = embedder.embed([user_query])[0]
                 query_id = store.add(
                     user_query,
@@ -93,7 +98,7 @@ def query():
                     model=embedder.describe().get("model", ""),
                     exclude_ids={query_id},
                 )
-                events.put({"type": "similar", "items": similar})
+                events.put({"type": "similar", "items": similar, "store_size": store.count()})
             except backends.BackendError as exc:
                 events.put({"type": "error", "message": str(exc), "hint": exc.hint})
             except Exception as exc:  # noqa: BLE001

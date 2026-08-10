@@ -32,6 +32,7 @@ import numpy as np  # noqa: E402
 from graph import cosine_similarity, strongest_path, top_similarities  # noqa: E402
 
 CLAIMS = "data/claims/edge_spread.json"
+SEARCH = "data/claims/search_bench.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -105,6 +106,43 @@ FILE_CHECKS = [
         1.0,
         0.001,
         "nomic-embed-text separates steps less than all-minilm does",
+    ),
+    # Timings are machine-dependent, so these are upper bounds rather than point
+    # values: expected 0 with the bound as the tolerance. They are set an order of
+    # magnitude above what this machine measures, so they fail on a complexity
+    # regression -- an accidental O(n log n) sort or a per-query database decode --
+    # rather than on a slower laptop.
+    (
+        SEARCH,
+        lambda d: float(d["all_pairs_20_steps_ms"]),
+        0.0,
+        1.0,
+        "all-pairs over a 20-step chain stays under a millisecond",
+    ),
+    (
+        SEARCH,
+        lambda d: float(d["exact_topk_1k_ms"]),
+        0.0,
+        1.0,
+        "exact top-k over 1000 vectors stays under a millisecond",
+    ),
+    (
+        SEARCH,
+        lambda d: float(d["exact_topk_100k_ms"]),
+        0.0,
+        50.0,
+        "exact top-k over 100000 vectors stays under 50 ms",
+    ),
+    (
+        SEARCH,
+        # Falsified-prediction guard. The approximate index this project used to
+        # depend on returns one wrong neighbour per query on a current numpy, which
+        # is why it was removed. If a future build starts behaving, that is news and
+        # the removal is worth revisiting.
+        lambda d: 1.0 if d.get("annoy_returns_self_first") else 0.0,
+        0.0,
+        0.001,
+        "annoy 1.17.3 still fails to return a vector as its own neighbour",
     ),
 ]
 
