@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-.PHONY: all venv lint test test-ollama measure sweep bench check-numbers run clean
+.PHONY: all venv lint test test-ollama measure sweep bench loops check-numbers run clean
 
 # One gate. Lint, tests and the documented numbers pass together or the build is
 # not green -- keeping the numbers in a separate optional target is how a README
@@ -44,3 +44,7 @@ run:
 
 clean:
 	rm -rf .pytest_cache .ruff_cache __pycache__ tests/__pycache__ embeddings.db embeddings.ann
+
+# Is repetition actually the problem, or does the model drift instead?
+loops:
+	$(PY) scripts/measure_loops.py

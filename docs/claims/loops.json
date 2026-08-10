@@ -1,0 +1,94 @@
+{
+  "provenance": "measured",
+  "measured_at": "2026-08-10T13:50:56+00:00",
+  "chat_model": "(from saved transcripts)",
+  "embedding_model": "nomic-embed-text:latest",
+  "runs": 24,
+  "steps": 153,
+  "harness_audit": {
+    "raw_duplicates": 2,
+    "normalised_duplicates": 2,
+    "manufactured_by_normalisation": 0,
+    "empty_after_normalisation": 0,
+    "shortest_normalised_length": 24,
+    "trustworthy": true
+  },
+  "repeat_steps": 7,
+  "repeat_rate": 0.0458,
+  "repeat_by_detector": {
+    "restatement": 6,
+    "move": 3,
+    "exact": 2
+  },
+  "drift_steps": 6,
+  "drift_rate": 0.0392,
+  "clean_rate": 0.915,
+  "per_group": {
+    "simple": {
+      "steps": 37,
+      "repeat": 2,
+      "drift": 1,
+      "runs": 6
+    },
+    "multi_step": {
+      "steps": 39,
+      "repeat": 4,
+      "drift": 5,
+      "runs": 6
+    },
+    "malformed": {
+      "steps": 39,
+      "repeat": 1,
+      "drift": 0,
+      "runs": 6
+    },
+    "ambiguous": {
+      "steps": 38,
+      "repeat": 0,
+      "drift": 0,
+      "runs": 6
+    }
+  },
+  "mutual_knn": [
+    {
+      "k": 2,
+      "n": 153,
+      "components": 66,
+      "largest": 7,
+      "largest_share": 0.0458,
+      "singletons": 31
+    },
+    {
+      "k": 3,
+      "n": 153,
+      "components": 48,
+      "largest": 7,
+      "largest_share": 0.0458,
+      "singletons": 21
+    },
+    {
+      "k": 4,
+      "n": 153,
+      "components": 35,
+      "largest": 8,
+      "largest_share": 0.0523,
+      "singletons": 11
+    },
+    {
+      "k": 6,
+      "n": 153,
+      "components": 13,
+      "largest": 40,
+      "largest_share": 0.2614,
+      "singletons": 0
+    }
+  ],
+  "mean_steps_per_run": 6.38,
+  "runs_with_a_repeat": 6,
+  "runs_with_a_repeat_rate": 0.25,
+  "thresholds": {
+    "restatement": 0.96,
+    "repeated_move": 0.95
+  },
+  "errors": 0
+}
