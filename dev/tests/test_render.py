@@ -289,3 +289,38 @@ class TestGraphToLog:
             run_query(page, server)
             ids = page.evaluate("() => [...document.querySelectorAll('#steps .step')].map(e => e.id)")
         assert ids == [f"step-{i}" for i in range(1, len(ids) + 1)]
+
+    def test_an_exactly_evaluated_sum_is_shown(self, page, tmp_path):
+        """The one part of a run the model did not decide, so it is worth showing.
+
+        A reader can check "20-13.5 = 6.5" at a glance in a way they cannot check a
+        paragraph of reasoning.
+        """
+        pytest.importorskip("mpeqs", reason="the arithmetic gate is an optional extra")
+        script = [
+            step("Total", "Three items at 4.50 each.", calc="3*4.5"),
+            step("Change", "Subtract from the note.", "final_answer", calc="20-13.5"),
+            "Your change is 6.50.",
+        ]
+        with LiveServer(script, tmp_path) as server:
+            run_query(page, server, "What is my change?")
+            chips = page.locator("#sums span")
+            assert chips.count() == 2
+            shown = [chips.nth(i).inner_text() for i in range(2)]
+            assert "3*4.5 = 13.5" in shown
+            assert "20-13.5 = 6.5" in shown
+
+    def test_sums_from_a_previous_run_are_cleared(self, page, tmp_path):
+        # A stale "= 6.5" left over from the last question is worse than none.
+        pytest.importorskip("mpeqs", reason="the arithmetic gate is an optional extra")
+        script = [
+            step("A", "x", "final_answer", calc="2+2"), "Four.",
+            step("B", "y", "final_answer", calc="3+3"), "Six.",
+        ]
+        with LiveServer(script, tmp_path) as server:
+            run_query(page, server, "What is two plus two?")
+            assert [c.inner_text() for c in page.locator("#sums span").all()] == ["2+2 = 4"]
+            run_query(page, server, "What is three plus three?")
+            # Not ["2+2 = 4", "3+3 = 6"]: the first run's sum belongs to the first
+            # question, and leaving it up would attribute it to this one.
+            assert [c.inner_text() for c in page.locator("#sums span").all()] == ["3+3 = 6"]

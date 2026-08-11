@@ -13,6 +13,11 @@
         button { padding: 10px 20px; margin-right: 8px; }
         button[disabled] { opacity: .5; cursor: not-allowed; }
         .step, .final-answer, .similar-item { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; }
+        #sums { margin: 6px 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-size: 12px; color: #444; display: flex; flex-wrap: wrap; gap: 6px; }
+        #sums b { font-weight: 600; color: #666; font-family: inherit; }
+        #sums span { background: #eef6ee; border: 1px solid #cfe3cf; border-radius: 3px;
+                     padding: 1px 5px; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
         #container { display: flex; flex-wrap: wrap; gap: 20px; }
         #left-panel { flex: 1 1 380px; min-width: 0; }
@@ -78,6 +83,9 @@
     <div id="models"></div>
     <div id="progress" data-state="idle"><div id="progress-bar"><span></span></div></div>
     <div id="status"></div>
+    <!-- Sums an exact evaluator settled. Worth showing: it is the one part of the
+         run the model did not decide, and a reader can check it at a glance. -->
+    <div id="sums" hidden></div>
 
     <div id="container">
         <div id="left-panel">
@@ -106,6 +114,8 @@
         const similar = document.getElementById('similar');
         const errors = document.getElementById('errors');
         const status = document.getElementById('status');
+        const sums = document.getElementById('sums');
+        const seenSums = new Set();
         const graphContainer = document.getElementById('graph');
 
         let network;
@@ -350,6 +360,9 @@
             answer.innerHTML = '';
             similar.innerHTML = '';
             errors.innerHTML = '';
+            sums.hidden = true;
+            sums.innerHTML = '';
+            seenSums.clear();
             nodes.clear();
             edges.clear();
             setBusy(true);
@@ -374,6 +387,19 @@
                     status.textContent = 'Writing the final answer…';
                     appendPanel('final-answer', 'Final Answer', data);
                     if (data.graph) updateGraph(data.graph);
+
+                } else if (data.type === 'calc') {
+                    // Deliberately not deduplicated away entirely: a repeated sum
+                    // means the model re-derived it, which is worth seeing. But the
+                    // same expression twice adds nothing, so it is shown once.
+                    if (!seenSums.has(data.expression)) {
+                        seenSums.add(data.expression);
+                        if (sums.hidden) { sums.hidden = false; sums.innerHTML = '<b>Exact:</b>'; }
+                        const chip = document.createElement('span');
+                        chip.textContent = `${data.expression} = ${data.value}`;
+                        chip.title = `Evaluated exactly at step ${data.step}`;
+                        sums.appendChild(chip);
+                    }
 
                 } else if (data.type === 'similar') {
                     similar.innerHTML = '';
