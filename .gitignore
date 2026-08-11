@@ -18,3 +18,10 @@ embeddings.ann
 dist/
 build/
 *.egg-info/
+
+# PySpell scratch databases. mpedb writes the lock file next to the working
+# directory rather than beside the database, so running the pyspell tests from a
+# checkout drops these in the root -- which is exactly where they must not be.
+spell.mpedb*
+*.mpedb
+*.mpedb.wlock
