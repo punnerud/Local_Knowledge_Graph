@@ -31,7 +31,8 @@ from mpe_lkg.reasoning import reason  # noqa: E402
 OUT_DIR = pathlib.Path("docs/claims")
 
 
-def run_arm(questions, *, check_arithmetic: bool, decompose: int, budget: float) -> dict:
+def run_arm(questions, *, check_arithmetic: bool, decompose: int, budget: float,
+            select: bool = False) -> dict:
     chat = backends.OllamaChat(backends.pick_chat_model())
     embedder = backends.OllamaEmbedding("")
     rows = []
@@ -46,6 +47,7 @@ def run_arm(questions, *, check_arithmetic: bool, decompose: int, budget: float)
                 decompose=decompose,
                 max_steps=14,
                 check_arithmetic=check_arithmetic,
+                select_answer=select,
                 time_budget=budget,
             ):
                 if event["type"] == "calc":
@@ -111,6 +113,8 @@ def main() -> int:
     parser.add_argument("--decompose", type=int, default=8)
     parser.add_argument("--budget", type=float, default=120.0)
     parser.add_argument("--group", default="", help="only this group")
+    parser.add_argument("--select", action="store_true",
+                        help="answer by choosing a computed fact instead of writing one")
     args = parser.parse_args()
 
     questions = build(args.seed, args.per_group)
@@ -123,8 +127,8 @@ def main() -> int:
     results = {}
     for label, gate in (("gate_on", True), ("gate_off", False)):
         print(f"--- {label} ---")
-        rows = run_arm(questions, check_arithmetic=gate,
-                       decompose=args.decompose, budget=args.budget)["rows"]
+        rows = run_arm(questions, check_arithmetic=gate, decompose=args.decompose,
+                       budget=args.budget, select=args.select)["rows"]
         results[label] = summarise(rows)
         results[label]["rows"] = rows
         print()

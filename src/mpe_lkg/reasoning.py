@@ -458,6 +458,15 @@ def reason(
     system_prompt: str = "",
     decompose: int = 0,
     check_arithmetic: bool = True,
+    # OFF by default, because it was measured and it lost. See _select: the
+    # machinery is sound and the guarantee is real -- the answer cannot be a
+    # number no tool computed -- but on llama3.2:3b it picks the wrong FACT more
+    # often than the synthesis wrote the wrong number. Full battery: 9/20 for the
+    # synthesis against 7/20 for selection, and computed-but-unused rose from 2
+    # to 7. The research says the ceiling here is the model's grounding (50.79%
+    # for llama3.2:3b against 88.19% for qwen3:4b), so this is worth turning on
+    # when the model changes -- and worth leaving off until it does.
+    select_answer: bool = False,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -748,7 +757,8 @@ def reason(
             # from the record, so what it chose and what is reported cannot drift
             # apart -- which is the whole failure this replaces. The literature
             # calls it Result-Ignore, and it is measured at 30% on an 8B Llama.
-            chosen = _select(chat, embedder, prompt, labelled) if check_arithmetic else None
+            chosen = (_select(chat, embedder, prompt, labelled)
+                      if (select_answer and check_arithmetic) else None)
             if chosen is not None:
                 label, value = chosen
                 selected = as_text(value)
