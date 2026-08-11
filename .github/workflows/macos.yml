@@ -54,7 +54,7 @@ jobs:
         run: python -m ruff check .
 
       - name: Test
-        run: python -m pytest tests/ -q -m "not ollama"
+        run: python -m pytest dev/tests/ -q -m "not ollama"
 
       - name: Check documented numbers
-        run: python scripts/check_numbers.py
+        run: python dev/scripts/check_numbers.py

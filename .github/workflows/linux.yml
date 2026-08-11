@@ -73,12 +73,12 @@ jobs:
         run: python -m ruff check .
 
       - name: Test
-        run: python -m pytest tests/ -q -m "not ollama"
+        run: python -m pytest dev/tests/ -q -m "not ollama"
 
       # One gate: lint, tests and the documented numbers pass together. Keeping this
       # as a separate optional target is how a README drifts from what the code does.
       - name: Check documented numbers
-        run: python scripts/check_numbers.py
+        run: python dev/scripts/check_numbers.py
 
       - name: Build the wheel
         run: |

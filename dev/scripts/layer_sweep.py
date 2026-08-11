@@ -21,13 +21,15 @@ import statistics
 import sys
 from datetime import datetime, timezone
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
 
-from scripts.measure import TOPICS  # noqa: E402
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+from measure import TOPICS  # noqa: E402
 
 DEFAULT_MODEL = "HuggingFaceTB/SmolLM2-135M"
 

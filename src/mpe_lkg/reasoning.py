@@ -122,6 +122,53 @@ ANSWER_PROMPT = (
 )
 
 
+DECOMPOSE_PROMPT = (
+    "Question: {question}\n\n"
+    "Before answering, list the distinct things worth checking. Aim for {n} of them. Each is "
+    "a short angle name of a few words -- an assumption to test, a quantity to work out, a "
+    "reading of the question that might change the answer, or a way to check the result.\n"
+    "They must not overlap. Reply as JSON: {{\"angles\": [\"...\", \"...\"]}}"
+)
+
+ANGLE_SCHEMA = {
+    "type": "object",
+    "properties": {"angles": {"type": "array", "items": {"type": "string"}}},
+    "required": ["angles"],
+}
+
+ANGLE_STEP_PROMPT = (
+    "Now do this one: {angle}\n"
+    "Work it out concretely -- do not restate the plan or what you have already covered."
+)
+
+
+def plan_angles(chat, question: str, want: int = 7) -> list[str]:
+    """Ask the model to break the question into angles worth checking.
+
+    Steps that each answer a named angle differ from one another by construction,
+    which is what a run of eight steps needs in order to be worth drawing. Left to
+    itself over that length a model restates.
+    """
+    try:
+        raw = "".join(chat.stream(
+            [{"role": "user", "content": DECOMPOSE_PROMPT.format(question=question, n=want)}],
+            400, schema=ANGLE_SCHEMA,
+        ))
+    except BackendError:
+        return []
+
+    parsed = extract_json(raw)
+    angles = parsed.get("angles") or []
+    seen, out = set(), []
+    for angle in angles:
+        text = " ".join(str(angle).split())[:80]
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            out.append(text)
+    return out[: want + 2]
+
+
 def _spine(node_ids: list[str], labels: list[str], vectors, top_k: int = 2) -> list[int]:
     """Indices of the steps on the strongest path, in order.
 
@@ -194,6 +241,7 @@ def reason(
     detect_repeats: bool = True,
     max_novelty_retries: int = 3,
     system_prompt: str = "",
+    decompose: int = 0,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -224,6 +272,17 @@ def reason(
         )
         return serialized, path_data
 
+    # When asked to decompose, the plan is made once and then walked. Each step is
+    # aimed at a named angle, so the steps differ by construction rather than by
+    # hoping a model asked for "another step" finds something new to say.
+    angles: list[str] = []
+    if decompose:
+        started = time.time()
+        angles = plan_angles(chat, prompt, decompose)
+        total_thinking_time += time.time() - started
+        if angles:
+            yield {"type": "plan", "angles": angles}
+
     deadline = time.time() + time_budget
     try:
         while len(node_ids) < max_steps:
@@ -234,6 +293,16 @@ def reason(
             step_number = len(node_ids) + 1
             step_json = None
             truncated = False
+
+            if angles:
+                if step_number <= len(angles):
+                    messages.append({
+                        "role": "user",
+                        "content": ANGLE_STEP_PROMPT.format(angle=angles[step_number - 1]),
+                    })
+                elif not final_answer:
+                    # The plan is walked; nothing is added by asking for more.
+                    break
 
             for attempt in range(MAX_RETRIES_PER_STEP):
                 started = time.time()

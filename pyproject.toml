@@ -51,10 +51,10 @@ mpe-lkg = "mpe_lkg.cli:main"
 packages = ["src/mpe_lkg"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/mpe_lkg", "tests", "scripts", "README.md", "Makefile", "pyproject.toml"]
+include = ["src/mpe_lkg", "dev", "docs", "README.md", "Makefile", "pyproject.toml"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["dev/tests"]
 pythonpath = ["src"]
 markers = [
     "ollama: needs a running Ollama with the models named in the README",
@@ -72,5 +72,5 @@ select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["E402"]
+"dev/tests/*" = ["E402"]
 "app.py" = ["E402"]

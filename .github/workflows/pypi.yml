@@ -42,7 +42,7 @@ jobs:
       # Browser tests are skipped here: the OS workflows already ran them for this
       # commit. What must not be skipped is that the code imports and behaves.
       - name: Test
-        run: python -m pytest tests/ -q -m "not ollama" --ignore=tests/test_render.py
+        run: python -m pytest dev/tests/ -q -m "not ollama" --ignore=dev/tests/test_render.py
 
       - name: Build
         run: python -m build

@@ -5,8 +5,11 @@ import sys
 import pytest
 
 # Works whether or not the package is installed, and identically on Windows.
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+# The measurement scripts are importable too, so a test can reuse their maths
+# instead of restating it.
+sys.path.insert(0, str(ROOT / "dev" / "scripts"))
 sys.path.insert(0, str(ROOT))
 
 from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat  # noqa: E402

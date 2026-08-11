@@ -18,37 +18,37 @@ lint:
 	$(PY) -m ruff check .
 
 test:
-	$(PY) -m pytest tests/ -q -m "not ollama"
+	$(PY) -m pytest dev/tests/ -q -m "not ollama"
 
 # Requires a running Ollama with the models named in the README.
 test-ollama:
-	$(PY) -m pytest tests/ -q -m ollama
+	$(PY) -m pytest dev/tests/ -q -m ollama
 
 # Regenerates docs/claims/*.json from a live Ollama.
 measure:
-	$(PY) scripts/measure.py
+	$(PY) dev/scripts/measure.py
 
 # How well does each layer of a local model separate topics? Needs torch.
 sweep:
-	$(PY) scripts/layer_sweep.py
+	$(PY) dev/scripts/layer_sweep.py
 
 # Exact scan versus an approximate index, at several store sizes.
 bench:
-	$(PY) scripts/bench_search.py
+	$(PY) dev/scripts/bench_search.py
 
 check-numbers:
-	$(PY) scripts/check_numbers.py
+	$(PY) dev/scripts/check_numbers.py
 
 run:
 	$(PY) app.py
 
 clean:
-	rm -rf .pytest_cache .ruff_cache __pycache__ tests/__pycache__ embeddings.db embeddings.ann
+	rm -rf .pytest_cache .ruff_cache __pycache__ dev/tests/__pycache__ embeddings.db embeddings.ann
 
 # Is repetition actually the problem, or does the model drift instead?
 loops:
-	$(PY) scripts/measure_loops.py
+	$(PY) dev/scripts/measure_loops.py
 
 # Is the thinking improving the answer? Needs a live Ollama.
 eval:
-	$(PY) scripts/eval.py --repeats 4 --label validated
+	$(PY) dev/scripts/eval.py --repeats 4 --label validated

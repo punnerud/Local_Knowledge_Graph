@@ -28,7 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
@@ -81,6 +81,52 @@ QUESTIONS = [
      "expect": ["not have a height", "does not have", "colour", "color", "not a physical",
                 "cannot", "misunderstand"]},
 
+    # -- hard: several angles genuinely required, and the obvious answer is often
+    #    wrong. The simple group is saturated at 24/24, and a saturated group can
+    #    only show a fall, never an improvement. Every expectation below is worked
+    #    out by hand in its comment -- an inverted one slipped through last time.
+    {"group": "hard",
+     # 14:35 + 2h50m = 17:25 arrival. Leaving 25 min before 14:35 = 14:10.
+     "q": "A train departs at 14:35 and the journey takes 2 hours 50 minutes. I need 25 "
+          "minutes to reach the station. What time must I leave home, and what time do I arrive?",
+     "expect": ["14:10", "2:10"], "reject": []},
+    {"group": "hard",
+     # Three colours, so by the pigeonhole principle four draws guarantee a pair.
+     "q": "A drawer holds 3 red socks, 5 blue socks and 2 green socks. How many socks must I "
+          "take out in the dark to be certain of having a matching pair?",
+     "expect": ["4", "four"]},
+    {"group": "hard",
+     # The classic trap: they weigh the same. A kilogram is a kilogram.
+     "q": "Which weighs more, a kilogram of feathers or a kilogram of steel?",
+     "expect": ["same", "equal", "neither", "both weigh"],
+     "reject": ["steel weighs more", "feathers weigh more"]},
+    {"group": "hard",
+     # b + (b+1.00) = 1.10 -> b = 0.05. The intuitive 0.10 is wrong.
+     "q": "A bat and a ball cost 1.10 in total. The bat costs 1.00 more than the ball. "
+          "How much does the ball cost?",
+     "expect": ["0.05", ".05", "5 cent", "5p"], "reject": ["0.10 ", "10 cent"]},
+    {"group": "hard",
+     # 5 machines 5 minutes 5 widgets -> 1 machine makes 1 widget in 5 minutes ->
+     # 100 machines make 100 widgets in 5 minutes.
+     "q": "If 5 machines take 5 minutes to make 5 widgets, how long do 100 machines take "
+          "to make 100 widgets?",
+     "expect": ["5 minute", "five minute"], "reject": ["100 minute", "hundred minute"]},
+    {"group": "hard",
+     # Doubling daily, full on day 48, so half-covered the day before: day 47.
+     "q": "Lily pads double in area every day and cover the whole lake on day 48. "
+          "On which day is the lake half covered?",
+     "expect": ["47", "forty-seven"]},
+    {"group": "hard",
+     # 1.5 km at 5 km/h = 18 min walking; the bus takes 8 min but leaves in 12,
+     # arriving at 20 min. Walking arrives first.
+     "q": "The shop is 1.5 km away. I walk at 5 km/h. A bus leaves in 12 minutes and takes "
+          "8 minutes. Do I get there sooner walking or waiting for the bus?",
+     "expect": ["walk"], "reject": ["bus is faster", "wait for the bus", "take the bus"]},
+    {"group": "hard",
+     # Two hops: Norway's capital is Oslo; Oslo is on the Oslofjord.
+     "q": "Which body of water is the capital city of Norway situated on?",
+     "expect": ["oslofjord", "oslo fjord", "fjord"]},
+
     # -- ambiguous: KEPT, BUT NOT GRADED. Substring matching cannot score these, and
     #    pretending otherwise produced a number that moved for the wrong reason.
     #    "A hot dog is a sandwich." is a perfectly good answer and matches nothing in
@@ -107,7 +153,7 @@ def grade(answer: str, spec: dict) -> bool | None:
 
 
 def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detect=True,
-             system_prompt="", min_steps=0) -> dict:
+             system_prompt="", min_steps=0, decompose=0) -> dict:
     chat.reset_usage()
     started = time.time()
     steps, answer, error = [], "", None
@@ -115,7 +161,7 @@ def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detec
     repeats = 0
     for event in reason(spec["q"], chat=chat, embedder=embedder, synthesise=synthesise,
                         time_budget=budget, detect_repeats=detect, system_prompt=system_prompt,
-                        min_steps=min_steps):
+                        min_steps=min_steps, decompose=decompose):
         if event["type"] == "step":
             steps.append(event["content"])
         elif event["type"] == "repeat":
@@ -179,6 +225,8 @@ def main() -> int:
     parser.add_argument("--no-synthesis", action="store_true",
                         help="take the last step as the answer, as the baseline did")
     parser.add_argument("--budget", type=float, default=120.0, help="seconds per run")
+    parser.add_argument("--decompose", type=int, default=0,
+                        help="plan N angles first, then take one step per angle")
     parser.add_argument("--min-steps", type=int, default=0,
                         help="floor on reasoning steps; 0 lets novelty decide")
     parser.add_argument("--short-prompt", action="store_true",
@@ -205,7 +253,7 @@ def main() -> int:
             result = run_once(spec, chat, embedder, synthesise=not args.no_synthesis,
                               budget=args.budget, detect=not args.no_repeat_detection,
                               system_prompt=SHORT_SYSTEM_PROMPT if args.short_prompt else "",
-                              min_steps=args.min_steps)
+                              min_steps=args.min_steps, decompose=args.decompose)
             results.append(result)
             marks.append("-" if result["correct"] is None else ("." if result["correct"] else "x"))
         print(f"  [{n:>2}/{len(specs)}] {''.join(marks)}  {spec['group']:<11} {spec['q'][:52]}", flush=True)
