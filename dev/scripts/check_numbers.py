@@ -41,6 +41,7 @@ BATTERY = "docs/claims/battery_20260811.json"
 BATTERY_REPLICATION = "docs/claims/battery_99.json"
 UNITS = "docs/claims/battery_4242.json"
 QWEN = "docs/claims/battery_20260811_qwen3.json"
+QWEN_SELECT = "docs/claims/battery_555_qwen3_select.json"
 QWEN_REPLICATION = "docs/claims/battery_555_qwen3.json"
 LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
 
@@ -438,6 +439,24 @@ FILE_CHECKS = [
         5.5,
         1.5,
         "and reaches them in fewer steps, not more",
+    ),
+    (
+        QWEN_SELECT,
+        # Selection costs nothing on a capable model. The point of pinning it is
+        # that the default is off, so nothing else would notice if this drifted.
+        lambda d: d["gate_on"]["correct_rate"],
+        0.80,
+        0.15,
+        "answering by selection costs no accuracy on qwen3",
+    ),
+    (
+        QWEN_SELECT,
+        # And it does the job it exists for: a value computed exactly and then not
+        # used. Five of those across two batteries without it, one with.
+        lambda d: float(d["gate_on"]["computed_but_unused"]),
+        1.0,
+        1.5,
+        "and nearly removes the failure it was built for",
     ),
 ]
 

@@ -683,14 +683,22 @@ def reason(
     # large question become eighty small ones rather than eight vague ones.
     depth: int = 1,
     check_arithmetic: bool = True,
-    # OFF by default, because it was measured and it lost. See _select: the
-    # machinery is sound and the guarantee is real -- the answer cannot be a
-    # number no tool computed -- but on llama3.2:3b it picks the wrong FACT more
-    # often than the synthesis wrote the wrong number. Full battery: 9/20 for the
-    # synthesis against 7/20 for selection, and computed-but-unused rose from 2
-    # to 7. The research says the ceiling here is the model's grounding (50.79%
-    # for llama3.2:3b against 88.19% for qwen3:4b), so this is worth turning on
-    # when the model changes -- and worth leaving off until it does.
+    # OFF by default, and the default is a judgement about WHICH MODEL, not about
+    # the design. Measured on the full battery, both directions:
+    #
+    #   llama3.2:3b   9/20 -> 7/20 correct, computed-but-unused 2 -> 7   WORSE
+    #   qwen3:4b     33/40 -> 33/40 correct, computed-but-unused 5 -> 1   even,
+    #                and it removes four fifths of the failure it exists for
+    #
+    # On a capable model it is free and does the job: the answer cannot be a
+    # number no tool computed, because the model returns a letter and the value
+    # comes from our record. On a weaker one it trades writing the wrong number
+    # for choosing the wrong fact, which is a worse trade.
+    #
+    # Off, because this package picks whatever model is installed and llama3.2:3b
+    # is a common one. Turn it on with a model that scores well on grounding:
+    #
+    #     reason(..., select_answer=True)
     select_answer: bool = False,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
