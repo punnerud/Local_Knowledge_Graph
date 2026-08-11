@@ -18,6 +18,13 @@
         #sums b { font-weight: 600; color: #666; font-family: inherit; }
         #sums span { background: #eef6ee; border: 1px solid #cfe3cf; border-radius: 3px;
                      padding: 1px 5px; }
+        .vote-bar { display: flex; gap: 4px; margin: 6px 0; }
+        .vote-bar span { width: 26px; height: 26px; border-radius: 4px; display: flex;
+                         align-items: center; justify-content: center; font-size: 14px;
+                         cursor: help; }
+        .vote-yes { background: #a5d6a7; border: 1px solid #2e7d32; color: #1b5e20; }
+        .vote-no  { background: #f5c6c2; border: 1px solid #c0392b; color: #7b1f16; }
+        .vote-lenses { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: #52514e; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
         #container { display: flex; flex-wrap: wrap; gap: 20px; }
         #left-panel { flex: 1 1 380px; min-width: 0; }
@@ -78,6 +85,11 @@
        knowledge graph for exploring related questions and answers.</p>
 
     <input type="text" id="query" placeholder="e.g., What is the capital of France?">
+    <select id="mode" title="How hard to work on the answer">
+      <option value="reason">Reason — one run</option>
+      <option value="explore">Explore — each part answered on its own</option>
+      <option value="settle">Settle — explored twice, until two runs agree</option>
+    </select>
     <button id="submit">Submit</button>
     <button id="download-img">Download PNG</button>
     <div id="models"></div>
@@ -297,6 +309,54 @@
             network.fit();
         }
 
+        function showVote(data) {
+            // The tally, not just the verdict. A 2-1 agreement and a 3-0 one are
+            // different things, and hiding which is which turns a close call into
+            // a fact.
+            const div = document.createElement('div');
+            div.className = 'step';
+            const h = document.createElement('h3');
+            h.textContent = `Vote: ${data.agree} agree, ${data.disagree} disagree`;
+            div.appendChild(h);
+
+            const bar = document.createElement('div');
+            bar.className = 'vote-bar';
+            (data.ballots || []).forEach(b => {
+                const cell = document.createElement('span');
+                cell.className = b.agree ? 'vote-yes' : 'vote-no';
+                cell.textContent = b.agree ? '✓' : '✗';
+                cell.title = b.lens + (b.about ? `\n\nDisagrees about: ${b.about}` : '');
+                bar.appendChild(cell);
+            });
+            div.appendChild(bar);
+
+            const list = document.createElement('ul');
+            list.className = 'vote-lenses';
+            (data.ballots || []).forEach(b => {
+                const li = document.createElement('li');
+                li.textContent = (b.agree ? '✓ ' : '✗ ') + b.lens
+                               + (b.about ? ` — ${b.about}` : '');
+                list.appendChild(li);
+            });
+            div.appendChild(list);
+            steps.appendChild(div);
+            steps.scrollTop = steps.scrollHeight;
+        }
+
+        function note(heading, body) {
+            const div = document.createElement('div');
+            div.className = 'step';
+            const h = document.createElement('h3');
+            h.textContent = heading;
+            const p = document.createElement('p');
+            p.style.whiteSpace = 'pre-wrap';
+            p.textContent = body || '';
+            div.appendChild(h);
+            div.appendChild(p);
+            steps.appendChild(div);
+            steps.scrollTop = steps.scrollHeight;
+        }
+
         function appendPanel(className, heading, data) {
             const div = document.createElement('div');
             div.className = className;
@@ -466,7 +526,9 @@
             setProgress('running', 0.06);
             status.textContent = 'Connecting to the model…';
 
-            eventSource = new EventSource(`/query?query=${encodeURIComponent(userQuery)}`);
+            const mode = document.getElementById('mode').value;
+            eventSource = new EventSource(
+                `/query?query=${encodeURIComponent(userQuery)}&mode=${mode}`);
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -483,6 +545,36 @@
                     status.textContent = 'Writing the final answer…';
                     appendPanel('final-answer', 'Final Answer', data);
                     if (data.graph) updateGraph(data.graph);
+
+                } else if (data.type === 'branch') {
+                    // A question split into questions. Shown as it happens: an
+                    // explore run is minutes, and a blank page for two of them is
+                    // indistinguishable from a broken one.
+                    note(`Split into ${data.parts.length} question${data.parts.length > 1 ? 's' : ''}`,
+                         data.parts.map(p => `• ${p}`).join('\n'));
+
+                } else if (data.type === 'finding') {
+                    note(`Answered: ${data.question}`, data.answer);
+
+                } else if (data.type === 'round') {
+                    note(`Round ${data.round} of ${data.of}`,
+                         data.focus ? `Settling: ${data.focus}` : 'Exploring independently');
+
+                } else if (data.type === 'vote') {
+                    showVote(data);
+
+                } else if (data.type === 'deviation') {
+                    note(`Disagreement (${data.votes} of ${data.of} checks)`,
+                         `About: ${data.about}. Exploring again.`);
+
+                } else if (data.type === 'agreed') {
+                    note(`Agreed — ${data.votes} of ${data.of} checks`, data.answer);
+
+                } else if (data.type === 'unresolved') {
+                    note('Unresolved', `They disagree about ${data.about}.`);
+
+                } else if (data.type === 'budget') {
+                    note('Budget spent', `${data.dropped} question(s) not explored.`);
 
                 } else if (data.type === 'convert') {
                     // The hard graph. A conversion is a fact about two units, so it

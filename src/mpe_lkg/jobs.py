@@ -40,6 +40,10 @@ class Job:
     def __init__(self, question: str) -> None:
         self.id = uuid.uuid4().hex[:12]
         self.question = question
+        # How the run was asked for: reason, explore or settle. Reported so a
+        # poller knows what it is waiting for -- a settle run is minutes, not
+        # seconds, and a caller that cannot tell them apart will time out on one.
+        self.mode = "reason"
         self.created = time.time()
         self.finished: float | None = None
         self.events: list[dict] = []
@@ -81,6 +85,7 @@ class Job:
         return {
             "id": self.id,
             "question": self.question,
+            "mode": self.mode,
             "state": self.state,
             "steps": len(self.of_type("step")),
             "events": len(self.snapshot()),

@@ -1057,11 +1057,33 @@ EXPLORE_PROMPT = (
     "it, say exactly which further quantity is missing."
 )
 
-# What one branch is worth. Recursion multiplies: five sub-questions two deep is
-# thirty runs, and at eight seconds each that is four minutes before anything is
-# shown. The budget is spent breadth-first from the root so a run cut short still
-# has whole answers rather than a half-explored corner.
+# What one branch is worth. Recursion multiplies, so the budget is spent
+# breadth-first from the root: a run cut short then has whole answers rather than
+# a half-explored corner.
 BRANCH_BUDGET = 45.0
+
+# Breadth NARROWS with depth: 5 at the top, then 4, then 3, then 2. Held flat it
+# is 5^d -- 625 questions four deep -- and the fifth question at depth four is
+# never the one that mattered. Tapered it is 5*4*3*2 = 120, which is a large
+# exploration that still ends.
+MIN_BREADTH = 2
+
+# How many times a level may re-open after seeing its own answers. One is enough
+# to act on what the work turned up; more and the budget goes to widening rather
+# than to answering.
+REOPENINGS = 1
+
+
+def _followup(question: str, findings: list[tuple[str, str]]) -> str:
+    """The question again, with what has been learned, so the next split knows it."""
+    learned = "\n".join(f"  {q} -> {a}" for q, a in findings)
+    return (f"{question}\n\nWhat has been established so far:\n{learned}\n\n"
+            "What does this leave unanswered?")
+
+
+def breadth_at(level: int, top: int) -> int:
+    """How many ways to split at this depth. One fewer each level, never below two."""
+    return max(top - level, MIN_BREADTH)
 
 
 def explore(
@@ -1097,7 +1119,8 @@ def explore(
         yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
         return
 
-    parts = subquestions(chat, embedder, prompt, breadth, asked=asked)
+    here = breadth_at(_level, breadth)
+    parts = subquestions(chat, embedder, prompt, here, asked=asked)
     if not parts:
         # Nothing worth splitting into is a finding, not a failure: the question
         # is already the size of one run.
@@ -1134,6 +1157,43 @@ def explore(
     if not findings:
         yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
         return
+
+    # Loop back. A plan made before any work is a guess about what the work will
+    # need, and the answers routinely raise something the plan could not have
+    # known to ask. Without this the exploration can only ever be as good as its
+    # first guess.
+    #
+    # It cannot run away: `asked` holds every question so far, and subquestions()
+    # drops anything already asked or drifted -- which is why re-opening is safe
+    # here and would not be with a model deciding when to stop.
+    for opening in range(REOPENINGS):
+        left = budget - (time.time() - started)
+        if left < BRANCH_BUDGET:
+            break
+        raised = subquestions(chat, embedder, _followup(prompt, findings),
+                             max(here - 1, MIN_BREADTH), asked=asked)
+        if not raised:
+            break
+        yield {"type": "reopened", "level": _level, "round": opening + 1,
+               "questions": raised}
+        asked.extend(raised)
+        for extra in raised:
+            left = budget - (time.time() - started)
+            if left < BRANCH_BUDGET:
+                break
+            answer = ""
+            for event in explore(
+                extra, chat=chat, embedder=embedder, breadth=breadth,
+                depth=depth - 1, budget=min(left, budget / max(len(raised), 1)),
+                _asked=asked, _level=_level + 1, **kwargs,
+            ):
+                if event["type"] == "final":
+                    answer = event["content"]
+                yield {**event, "level": _level + 1, "of": extra}
+            if answer:
+                findings.append((extra, answer))
+                yield {"type": "finding", "level": _level, "question": extra,
+                       "answer": answer}
 
     # The assembly is a REASONING RUN, not a chat call. Measured: as a bare call
     # it was handed the Earth's surface area, the atmosphere's height and the
@@ -1173,4 +1233,200 @@ def explore(
         "branches": len(findings),
         "asked": len(asked),
         "level": _level,
+    }
+
+CHECK_PROMPT = (
+    "Question: {question}\n\n"
+    "First answer:  {first}\n"
+    "Second answer: {second}\n\n"
+    "These were worked out independently. Do they agree on the ANSWER -- the same "
+    "value, the same conclusion -- setting aside wording, rounding and how much "
+    "detail each gives?\n"
+    "Judge it on this in particular: {lens}\n"
+    "If they disagree, name the single quantity or claim they disagree about, in a "
+    "few words. If they agree, leave it empty.\n"
+    'Reply as JSON: {{"agree": true, "disagreement": ""}}'
+)
+
+CHECK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "agree": {"type": "boolean"},
+        "disagreement": {"type": "string"},
+    },
+    "required": ["agree", "disagreement"],
+}
+
+# Two answers this close are the same answer differently worded, and asking a
+# model to adjudicate them wastes a call to be told so.
+SAME_ANSWER = 0.94
+
+# Rounds of exploration before a disagreement is reported as a disagreement. Two
+# is the minimum that can agree at all; beyond four the budget is better spent
+# saying what is unresolved than looking again.
+MAX_ROUNDS = 4
+
+
+def settle(
+    prompt: str,
+    *,
+    chat: ChatBackend,
+    embedder: EmbeddingBackend,
+    rounds: int = 3,
+    breadth: int = 4,
+    depth: int = 1,
+    budget: float = 300.0,
+    **kwargs,
+) -> Iterator[dict]:
+    """Answer only when two independent explorations agree.
+
+    The rule this exists for: no single model call decides the answer. Every
+    answer here is explored -- broken into questions, each answered by its own
+    run -- and then explored AGAIN. Agreement between two independent runs is the
+    finishing condition. One run's synthesis is a proposal, not a verdict.
+
+    A disagreement is not resolved by asking a model which it prefers, because
+    that is the guess this is built to avoid. It is resolved by exploring again,
+    with the disagreement named as the thing to settle. If the rounds run out the
+    disagreement is REPORTED, which is a worse-looking answer and a more honest
+    one.
+
+    Loops are held off by embeddings, as everywhere else here: an answer that
+    matches one already given is agreement rather than a new round, and
+    ``subquestions`` refuses to re-ask what has been asked.
+    """
+    started = time.time()
+    rounds = max(2, min(rounds, MAX_ROUNDS))
+    per_round = budget / rounds
+
+    answers: list[str] = []
+    vectors: list = []
+    focus = ""
+
+    for round_number in range(1, rounds + 1):
+        left = budget - (time.time() - started)
+        if left <= 0:
+            break
+
+        question = prompt if not focus else (
+            f"{prompt}\n\nThe unresolved point is: {focus}. Settle that in particular."
+        )
+        yield {"type": "round", "round": round_number, "of": rounds, "focus": focus}
+
+        answer = ""
+        for event in explore(question, chat=chat, embedder=embedder, breadth=breadth,
+                             depth=depth, budget=min(left, per_round), **kwargs):
+            if event["type"] == "final":
+                answer = event["content"]
+            elif event["type"] not in ("done",):
+                yield {**event, "round": round_number}
+        if not answer:
+            continue
+
+        try:
+            vector = embedder.embed([answer])[0]
+        except BackendError:
+            vector = None
+
+        for earlier, earlier_vector in zip(answers, vectors, strict=True):
+            same = (vector is not None and earlier_vector is not None
+                    and similarity(vector, earlier_vector) >= SAME_ANSWER)
+            tally = None
+            if not same:
+                tally = vote(chat, prompt, earlier, answer)
+                yield {"type": "vote", "round": round_number, **tally}
+            if same or (tally and tally["agreed"]):
+                yield {"type": "agreed", "round": round_number, "answer": answer,
+                       "votes": (tally or {}).get("agree"),
+                       "of": len((tally or {}).get("ballots", []))}
+                yield _final(answer, round_number, started, agreed=True)
+                return
+
+        answers.append(answer)
+        vectors.append(vector)
+        if len(answers) > 1:
+            tally = vote(chat, prompt, answers[-2], answers[-1])
+            yield {"type": "vote", "round": round_number, **tally}
+            focus = tally["about"] or focus
+            yield {"type": "deviation", "round": round_number, "about": focus,
+                   "votes": tally["disagree"], "of": len(tally["ballots"])}
+
+    # No two rounds agreed. Saying so beats picking one, which would be exactly
+    # the single-model verdict this is built to avoid.
+    if not answers:
+        yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
+        return
+
+    unresolved = focus or "the answers did not converge"
+    body = "\n".join(f"  round {i}: {a}" for i, a in enumerate(answers, 1))
+    yield {"type": "unresolved", "about": unresolved, "answers": answers}
+    yield _final(
+        f"Unresolved after {len(answers)} independent explorations, which disagree "
+        f"about {unresolved}.\n{body}",
+        len(answers), started, agreed=False)
+
+
+# How many independent checks decide whether two answers agree. One checker is a
+# single call with a veto, and a call that happens to read the question narrowly
+# can send a settled answer round again -- or wave a real disagreement through.
+# Odd, so a majority always exists.
+VOTERS = 3
+
+# What each voter is asked to weigh. Same question, different ground, so three
+# voters are three readings rather than the same reading three times.
+LENSES = (
+    "Do they give the same VALUE, allowing for rounding and units?",
+    "Do they reach the same CONCLUSION, whatever numbers they show?",
+    "Would someone acting on the first do the same thing as someone acting on the second?",
+)
+
+
+def vote(chat, question: str, first: str, second: str, voters: int = VOTERS) -> dict:
+    """Ask several independent checks whether two answers agree, and count them.
+
+    A tally rather than a verdict, and reported rather than resolved internally:
+    the point of exploring twice is that no single call decides, and replacing one
+    explorer's guess with one checker's guess would give the decision straight
+    back. Each voter reads through a different lens, so a unanimous verdict means
+    three ways of looking rather than one looked at three times.
+    """
+    ballots = []
+    for index in range(max(1, voters)):
+        lens = LENSES[index % len(LENSES)]
+        try:
+            raw = "".join(chat.stream(
+                [{"role": "user", "content": CHECK_PROMPT.format(
+                    question=question, first=first, second=second, lens=lens)}],
+                200, schema=CHECK_SCHEMA,
+            ))
+        except BackendError:
+            continue
+        parsed = extract_json(raw)
+        ballots.append({
+            "lens": lens,
+            "agree": parsed.get("agree") is True,
+            "about": " ".join(str(parsed.get("disagreement", "")).split())[:120],
+        })
+
+    agree = sum(1 for b in ballots if b["agree"])
+    against = [b["about"] for b in ballots if not b["agree"] and b["about"]]
+    return {
+        "ballots": ballots,
+        "agree": agree,
+        "disagree": len(ballots) - agree,
+        # A majority, not a veto. One dissenting reading does not overturn two.
+        "agreed": bool(ballots) and agree * 2 > len(ballots),
+        "about": against[0] if against else "the answer itself",
+    }
+
+
+def _final(answer: str, rounds: int, started: float, *, agreed: bool) -> dict:
+    return {
+        "type": "final",
+        "content": answer,
+        "graph": {"nodes": [], "edges": []},
+        "path_data": {"strongest_path": [], "path_weights": [], "avg_similarity": 0.0},
+        "agreed": agreed,
+        "rounds": rounds,
+        "total_time": round(time.time() - started, 2),
     }

@@ -384,3 +384,89 @@ class TestExplore:
         tagged = [e for e in events if e.get("of")]
         assert tagged, "sub-run events must say which question they came from"
         assert {e["of"] for e in tagged} <= set(parts)
+
+
+class TestTheVote:
+    """Several independent checks, counted -- so no single one can fell an answer.
+
+    One checker is a call with a veto: a reading that happens to be narrow sends a
+    settled answer round again, and a lenient one waves a real disagreement
+    through. Three readings through three different lenses, and a majority.
+    """
+
+    def _voter(self, verdicts):
+        import json as _json
+
+        class Fake:
+            def __init__(self):
+                self.seen = 0
+                self.prompts = []
+
+            def stream(self, messages, max_tokens, schema=None):
+                self.prompts.append(messages[-1]["content"])
+                agree = verdicts[self.seen % len(verdicts)]
+                self.seen += 1
+                yield _json.dumps({"agree": agree,
+                                   "disagreement": "" if agree else "the total mass"})
+
+        return Fake()
+
+    def test_a_lone_dissenter_does_not_overturn_two(self):
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([True, True, False]), "q", "first", "second")
+        assert (tally["agree"], tally["disagree"]) == (2, 1)
+        assert tally["agreed"] is True
+
+    def test_a_lone_supporter_does_not_carry_it(self):
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([False, False, True]), "q", "first", "second")
+        assert tally["agreed"] is False
+        assert tally["about"] == "the total mass"
+
+    def test_every_voter_is_asked_something_different(self):
+        """Three readings, not one reading three times."""
+        from mpe_lkg.reasoning import LENSES, vote
+
+        chat = self._voter([True])
+        vote(chat, "q", "a", "b", voters=3)
+        assert len(chat.prompts) == 3
+        assert len(set(chat.prompts)) == 3, "the voters saw identical prompts"
+        for lens in LENSES:
+            assert any(lens in p for p in chat.prompts)
+
+    def test_the_tally_is_reported_not_just_the_verdict(self):
+        """2-1 and 3-0 are different things, and hiding which turns one into a fact."""
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([True, True, False]), "q", "a", "b")
+        assert len(tally["ballots"]) == 3
+        assert [b["agree"] for b in tally["ballots"]] == [True, True, False]
+        assert all(b["lens"] for b in tally["ballots"])
+
+    def test_a_backend_that_will_not_answer_does_not_pass_it(self):
+        from mpe_lkg.backends import BackendError
+        from mpe_lkg.reasoning import vote
+
+        class Broken:
+            def stream(self, messages, max_tokens, schema=None):
+                raise BackendError("down")
+                yield ""
+
+        tally = vote(Broken(), "q", "a", "b")
+        assert tally["agreed"] is False, "no ballots must not count as agreement"
+
+
+class TestBreadthTapers:
+    def test_breadth_narrows_with_depth_and_stops_at_two(self):
+        """Held flat, five ways four deep is 625 questions, and the fifth at the
+        bottom is never the one that mattered. 5*4*3*2 is 120 and it ends."""
+        import math
+
+        from mpe_lkg.reasoning import breadth_at
+
+        widths = [breadth_at(level, 5) for level in range(4)]
+        assert widths == [5, 4, 3, 2]
+        assert math.prod(widths) == 120
+        assert breadth_at(99, 5) == 2
