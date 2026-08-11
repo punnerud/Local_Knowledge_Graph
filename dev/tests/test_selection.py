@@ -46,30 +46,34 @@ class Chooser:
 
 
 class Embedder:
-    """Similarity by shared words, with no hashing at all.
+    """Similarity by shared words, at a FIXED width.
 
-    Two earlier versions of this double were wrong in ways that failed the gate
-    tests while the code under test was fine: `hash()` is randomised per process,
-    and a 512-bucket sha1 still collided, scoring "why is the sky blue" at 0.35
-    against "seconds in 54 weeks". A test double that invents similarity tests
-    nothing, so the vocabulary is built from the batch itself and collisions are
-    impossible.
+    Three earlier versions were wrong in ways that failed tests while the code was
+    fine. `hash()` is randomised per process. A 512-bucket sha1 still collided,
+    scoring "why is the sky blue" at 0.35 against "seconds in 54 weeks". And a
+    vocabulary built per call gave a different width on every call, which broke
+    the moment anything embedded twice inside one run.
+
+    Fixed width, deterministic buckets, wide enough that collisions are rare.
     """
 
+    WIDTH = 4096
+
     def embed(self, texts):
+        import hashlib
+
         import numpy as np
 
-        def words(text: str) -> set[str]:
-            return {w.strip("?.,!").lower() for w in text.split()
-                    if len(w.strip("?.,!")) > 2}
+        def bucket(word: str) -> int:
+            return int(hashlib.sha1(word.encode()).hexdigest()[:8], 16) % self.WIDTH
 
-        every = sorted({w for text in texts for w in words(text)})
-        index = {word: i for i, word in enumerate(every)}
         vectors = []
         for text in texts:
-            vector = np.zeros(max(len(every), 1), dtype=np.float32)
-            for word in words(text):
-                vector[index[word]] = 1.0
+            words = {w.strip("?.,!").lower() for w in str(text).split()}
+            words = {w for w in words if len(w) > 2}
+            vector = np.zeros(self.WIDTH, dtype=np.float32)
+            for word in words:
+                vector[bucket(word)] = 1.0
             norm = np.linalg.norm(vector)
             vectors.append(vector / norm if norm else vector)
         return np.array(vectors)
@@ -287,3 +291,96 @@ class TestSubquestions:
         many = [f"What is quantity number {i} of the atmosphere air?" for i in range(12)]
         assert len(subquestions(self._chat(many), Embedder(),
                                 "What is the atmosphere air made of?", 3)) <= 3
+
+
+class TestExplore:
+    """Each part answered as a run of its own, then assembled.
+
+    The measured difference from walking a plan flat: forty-six leaves in one
+    transcript produced thirteen steps and "negligible and not reliably
+    estimable", because the leaves are too alike and the synthesis cannot put
+    that many fragments together. Forty-six ANSWERS are a different thing -- an
+    answer says what it is, and a fragment does not.
+    """
+
+    def _backends(self, script):
+        """Word-overlap embeddings, not the hash-based double.
+
+        The relevance guard compares a sub-question with its parent, and a hash
+        embedding makes unrelated strings arbitrarily similar or dissimilar -- so
+        it dropped every part and the test measured the guard misfiring rather
+        than the feature.
+        """
+        import json as _json
+
+        class Scripted:
+            def __init__(self):
+                self.calls = 0
+
+            def stream(self, messages, max_tokens, schema=None):
+                self.calls += 1
+                text = messages[-1]["content"]
+                if "would let you answer" in text:
+                    yield _json.dumps({"questions": script})
+                elif schema is not None:
+                    yield _json.dumps({"title": "T", "content": "Worked out.",
+                                       "calc": "", "calc_of": "", "convert": "",
+                                       "next_action": "final_answer"})
+                else:
+                    yield "An answer."
+
+        return Scripted(), Embedder()
+
+    def test_a_question_that_will_not_split_falls_back_to_one_run(self):
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends([])
+        events = list(explore("What is the capital of France?", chat=chat,
+                              embedder=embedder, breadth=4, depth=1))
+        assert any(e["type"] == "final" for e in events)
+        assert not any(e["type"] == "branch" for e in events)
+
+    def test_depth_zero_is_an_ordinary_run(self):
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends(["Something else entirely?"])
+        events = list(explore("q", chat=chat, embedder=embedder, depth=0))
+        assert not any(e["type"] == "branch" for e in events)
+        assert any(e["type"] == "final" for e in events)
+
+    def test_the_parts_are_answered_and_assembled(self):
+        from mpe_lkg.reasoning import explore
+
+        parts = ["How heavy is the water above one square metre of air?",
+                 "How much water is in the air above a square metre?"]
+        chat, embedder = self._backends(parts)
+        events = list(explore("How heavy is the water in the air?", chat=chat,
+                              embedder=embedder, breadth=2, depth=1))
+        branch = next(e for e in events if e["type"] == "branch")
+        assert branch["parts"] == parts
+        # One finding per part, each carrying its own question, and one answer.
+        findings = [e for e in events if e["type"] == "finding" and e["level"] == 0]
+        assert [f["question"] for f in findings] == parts
+        assert all(f["answer"] for f in findings)
+        assert len([e for e in events if e["type"] == "final" and not e.get("level")]) == 1
+
+    def test_a_budget_too_small_to_branch_just_answers(self):
+        """Half a plan is worse than no plan: it reads as an explored question."""
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends(["a?", "b?"])
+        events = list(explore("q", chat=chat, embedder=embedder, depth=1, budget=1.0))
+        assert not any(e["type"] == "branch" for e in events)
+        assert any(e["type"] == "final" for e in events)
+
+    def test_sub_runs_are_tagged_with_the_question_they_belong_to(self):
+        from mpe_lkg.reasoning import explore
+
+        parts = ["How heavy is the water in the air above one square metre?",
+                 "How much water sits in the air over a square metre?"]
+        chat, embedder = self._backends(parts)
+        events = list(explore("How heavy is the water in the air?", chat=chat,
+                              embedder=embedder, breadth=2, depth=1))
+        tagged = [e for e in events if e.get("of")]
+        assert tagged, "sub-run events must say which question they came from"
+        assert {e["of"] for e in tagged} <= set(parts)

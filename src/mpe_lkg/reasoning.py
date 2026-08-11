@@ -1047,3 +1047,130 @@ def reason(
         yield {"type": "error", "message": str(exc), "hint": exc.hint}
     except Exception as exc:  # noqa: BLE001 - the stream must always say what happened
         yield {"type": "error", "message": f"{type(exc).__name__}: {exc}", "hint": ""}
+
+EXPLORE_PROMPT = (
+    "{question}\n\n"
+    "These smaller questions have already been worked out, and their answers are "
+    "established:\n{findings}\n\n"
+    "Use those figures to answer the question above. They are the inputs -- do not "
+    "look for others and do not re-derive them. If they genuinely do not settle "
+    "it, say exactly which further quantity is missing."
+)
+
+# What one branch is worth. Recursion multiplies: five sub-questions two deep is
+# thirty runs, and at eight seconds each that is four minutes before anything is
+# shown. The budget is spent breadth-first from the root so a run cut short still
+# has whole answers rather than a half-explored corner.
+BRANCH_BUDGET = 45.0
+
+
+def explore(
+    prompt: str,
+    *,
+    chat: ChatBackend,
+    embedder: EmbeddingBackend,
+    breadth: int = 5,
+    depth: int = 1,
+    budget: float = 300.0,
+    _asked: list[str] | None = None,
+    _level: int = 0,
+    **kwargs,
+) -> Iterator[dict]:
+    """Answer by answering smaller questions, each as a run of its own.
+
+    The difference from ``depth=`` inside ``reason`` is what a part gets to be. A
+    leaf in a plan is a line in one long transcript, and forty-six of them
+    measured badly: the leaves are too alike, the repeat detector stops the run,
+    and the synthesis cannot assemble that many fragments. Here each part is a
+    COMPLETE question with a run and an answer of its own, so what comes back is
+    forty-six answers rather than forty-six fragments -- and an answer, unlike a
+    fragment, says what it is.
+
+    Both guards live in ``subquestions``: drift from the parent, and a question
+    already asked. Neither is the model's to apply, and at depth a repeat does not
+    look like a loop, it looks like progress.
+    """
+    started = time.time()
+    asked = list(_asked or [prompt])
+
+    if depth <= 0 or budget < BRANCH_BUDGET:
+        yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
+        return
+
+    parts = subquestions(chat, embedder, prompt, breadth, asked=asked)
+    if not parts:
+        # Nothing worth splitting into is a finding, not a failure: the question
+        # is already the size of one run.
+        yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
+        return
+
+    yield {"type": "branch", "level": _level, "question": prompt, "parts": parts}
+    asked.extend(parts)
+
+    findings: list[tuple[str, str]] = []
+    for index, part in enumerate(parts, 1):
+        left = budget - (time.time() - started)
+        if left < BRANCH_BUDGET:
+            # Say what was dropped. A silent truncation reads as "explored
+            # everything" when it did not.
+            yield {"type": "budget", "level": _level, "dropped": len(parts) - index + 1}
+            break
+
+        answer = ""
+        for event in explore(
+            part, chat=chat, embedder=embedder, breadth=breadth,
+            depth=depth - 1, budget=min(left, budget / max(len(parts), 1)),
+            _asked=asked, _level=_level + 1, **kwargs,
+        ):
+            if event["type"] == "final":
+                answer = event["content"]
+            # Sub-runs stream too, tagged with their level so a reader can see
+            # which question a step belongs to.
+            yield {**event, "level": _level + 1, "of": part}
+        if answer:
+            findings.append((part, answer))
+            yield {"type": "finding", "level": _level, "question": part, "answer": answer}
+
+    if not findings:
+        yield from reason(prompt, chat=chat, embedder=embedder, **kwargs)
+        return
+
+    # The assembly is a REASONING RUN, not a chat call. Measured: as a bare call
+    # it was handed the Earth's surface area, the atmosphere's height and the
+    # density of water vapour, and answered "cannot be estimated using the
+    # provided information" -- it had every figure and would not multiply them.
+    # Run as reason() it gets the arithmetic gate, the unit graph and the exact
+    # evaluator, which is the whole point of having built them.
+    listed = "\n".join(f"  {q}\n    -> {a}" for q, a in findings)
+    answer = ""
+    for event in reason(EXPLORE_PROMPT.format(question=prompt, findings=listed),
+                        chat=chat, embedder=embedder, **kwargs):
+        if event["type"] == "final":
+            answer = event["content"]
+        elif event["type"] in ("step", "calc", "convert"):
+            yield {**event, "level": _level, "assembling": True}
+
+    if not answer:
+        return
+
+    ids = [f"Q{i}" for i in range(1, len(findings) + 1)]
+    labels = [q[:20] for q, _ in findings]
+    try:
+        vectors = embedder.embed([q for q, _ in findings])
+        graph = serialize_graph_data(build_graph(ids, labels, vectors, top_k=2))
+    except BackendError:
+        graph = {"nodes": [], "edges": []}
+
+    yield {
+        "type": "final",
+        "content": answer,
+        "graph": graph,
+        "path_data": {"strongest_path": ids, "path_weights": [], "avg_similarity": 0.0},
+    }
+    yield {
+        "type": "done",
+        "total_time": round(time.time() - started, 2),
+        "branches": len(findings),
+        "asked": len(asked),
+        "level": _level,
+    }
