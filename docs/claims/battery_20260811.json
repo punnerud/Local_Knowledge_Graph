@@ -1,0 +1,708 @@
+{
+ "seed": 20260811,
+ "gate_on": {
+  "n": 20,
+  "correct": 9,
+  "correct_rate": 0.45,
+  "settled_exactly": 11,
+  "computed_but_unused": 2,
+  "steps_mean": 7.65,
+  "errors": 0,
+  "per_group": {
+   "long_multiplication": {
+    "n": 2,
+    "correct": 1,
+    "settled": 1
+   },
+   "long_addition": {
+    "n": 2,
+    "correct": 2,
+    "settled": 2
+   },
+   "long_subtraction": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "awkward_percentage": {
+    "n": 2,
+    "correct": 1,
+    "settled": 1
+   },
+   "division_with_remainder": {
+    "n": 2,
+    "correct": 1,
+    "settled": 1
+   },
+   "word_problem": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "unit_chain": {
+    "n": 2,
+    "correct": 0,
+    "settled": 1
+   },
+   "exact_fraction": {
+    "n": 2,
+    "correct": 2,
+    "settled": 2
+   },
+   "powers": {
+    "n": 2,
+    "correct": 1,
+    "settled": 1
+   },
+   "comparison": {
+    "n": 2,
+    "correct": 1,
+    "settled": 2
+   }
+  },
+  "rows": [
+   {
+    "group": "long_multiplication",
+    "question": "What is 53431930048 * 3565?",
+    "expected": "190484830621120",
+    "answer": "190485000000000",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "1.90485e+14 = 190485000000000"
+    ],
+    "steps": 8,
+    "seconds": 19.2,
+    "error": ""
+   },
+   {
+    "group": "long_multiplication",
+    "question": "What is 51395252287 * 5521?",
+    "expected": "283753187876527",
+    "answer": "283753187876527.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(51395252287 * 5521) = 283753187876527",
+     "(51395252287 - 8*5521*1000) = 51351084287",
+     "(1 * (51395252287 * 5521)) = 283753187876527"
+    ],
+    "steps": 7,
+    "seconds": 19.7,
+    "error": ""
+   },
+   {
+    "group": "long_addition",
+    "question": "What is 193048999061 plus 479849142350?",
+    "expected": "672898141411",
+    "answer": "672898141411.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(193048999061 + 479849142350) = 672898141411",
+     "(193048999061 + 479849142350) = 672898141411"
+    ],
+    "steps": 7,
+    "seconds": 11.0,
+    "error": ""
+   },
+   {
+    "group": "long_addition",
+    "question": "What is 446174485585 plus 377327695495?",
+    "expected": "823502181080",
+    "answer": "The sum of 446174485585 and 377327695495 is 823502181080.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(446174485585 + 377327695495) = 823502181080",
+     "(446174485585 + 377327695495) = 823502181080"
+    ],
+    "steps": 8,
+    "seconds": 14.1,
+    "error": ""
+   },
+   {
+    "group": "long_subtraction",
+    "question": "Subtract 68379748377 from 2753273712715. What is left?",
+    "expected": "2684893964338",
+    "answer": "-6,265,500.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "-6 = -6",
+     "(27-68)*10000 + (53-47)*1000 + (23-8)*100 + (7-3)*10 + 1 = -402459",
+     "-402459 = -402459",
+     "(27-68)*10000 + (53-47)*1000 + (23-8)*100 + (7-3)*10 + 1 = -402459",
+     "(27-68)*10000 + (53-47)*1000 + (23-8)*100 + (7-3)*10 + 1 = -402459",
+     "(27-68)*10000 + (53-47)*1000 + (23-8)*100 + (7-3)*10 + 1 = -402459",
+     "(27-68)*10000 + (53-47)*1000 + (23-8)*100 + (7-3)*10 + 1 = -402459"
+    ],
+    "steps": 8,
+    "seconds": 22.7,
+    "error": ""
+   },
+   {
+    "group": "long_subtraction",
+    "question": "Subtract 84869938002 from 3054364818243. What is left?",
+    "expected": "2969494880241",
+    "answer": "-1974250000.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "-(17/100)*250*100000+30000000-2000000000 = -1974250000",
+     "(17/100)*250*100000+30000000-2000000000 = -1965750000",
+     "(17/100)*250*100000+30000000-2000000000 = -1965750000",
+     "(17/100)*250*100000+30000000-2000000000 = -1965750000",
+     "(17/100)*250*100000+30000000-2000000000 = -1965750000",
+     "(17/100)*250*100000+30000000 = 34250000"
+    ],
+    "steps": 8,
+    "seconds": 23.1,
+    "error": ""
+   },
+   {
+    "group": "awkward_percentage",
+    "question": "What is 37 percent of 1426321?",
+    "expected": "52773877/100",
+    "answer": "527739.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(0.37)*1426321 = 527739",
+     "(0.37000001)*1426321 = 527739",
+     "(0.37000001)*1426321 = 527739",
+     "(0.37000001)*1426321 = 527739",
+     "(0.37000001)*1426321 = 527739",
+     "(0.37000001)*1426321 = 527739",
+     "(0.37)*1426321 = 527739",
+     "(37*3) + (37*4) + (37*2) + (37*6) + (37*2) + (37*1) = 666"
+    ],
+    "steps": 8,
+    "seconds": 19.6,
+    "error": ""
+   },
+   {
+    "group": "awkward_percentage",
+    "question": "What is 10 percent of 8596000?",
+    "expected": "859600",
+    "answer": "859600.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(10/100) * 8596000 = 859600",
+     "(8596000 / 10) = 859600",
+     "(8596000 / 10) = 859600"
+    ],
+    "steps": 7,
+    "seconds": 14.6,
+    "error": ""
+   },
+   {
+    "group": "division_with_remainder",
+    "question": "How many whole times does 816 go into 80255013326, and what is the remainder? Give the remainder.",
+    "expected": "14",
+    "answer": "The quotient is 98111111, and the remainder is 8.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "-80551191136 = -80551191136",
+     "(17/100)*250 = 42.5"
+    ],
+    "steps": 7,
+    "seconds": 19.2,
+    "error": ""
+   },
+   {
+    "group": "division_with_remainder",
+    "question": "How many whole times does 296 go into 4678432745, and what is the remainder? Give the remainder.",
+    "expected": "9",
+    "answer": "The quotient is 15811189, and the remainder is 0.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(4678432745 \u00f7 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07",
+     "(4678432745 / 296) = 1.58055e+07"
+    ],
+    "steps": 8,
+    "seconds": 19.1,
+    "error": ""
+   },
+   {
+    "group": "word_problem",
+    "question": "A warehouse holds 848 crates with 78 jars in each. 55 jars are broken and thrown away. How many jars remain?",
+    "expected": "66089",
+    "answer": "64911.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(848*78) = 66144",
+     "(848*78) = 66144",
+     "(848*78) = 66144",
+     "(843*77) = 64911",
+     "(843*77) = 64911",
+     "(64911-55) = 64856"
+    ],
+    "steps": 8,
+    "seconds": 16.3,
+    "error": ""
+   },
+   {
+    "group": "word_problem",
+    "question": "A warehouse holds 428 crates with 64 jars in each. 21 jars are broken and thrown away. How many jars remain?",
+    "expected": "27371",
+    "answer": "26048.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(428 * 64) = 27392",
+     "(428 * 64) = 27392",
+     "(21/27392) = 0.0008",
+     "(428 * 64) = 27392",
+     "(428 - 21) = 407",
+     "(407 * 64) = 26048",
+     "(428 * 64) = 27392",
+     "(27392 - 26048) = 1344"
+    ],
+    "steps": 7,
+    "seconds": 15.9,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 54 weeks?",
+    "expected": "32659200",
+    "answer": "There are 226,272,000 seconds in 54 weeks.",
+    "correct": false,
+    "settled_exactly": true,
+    "calcs": [
+     "(7*54) = 378",
+     "(3600*24) = 86400",
+     "(86400*378) = 32659200",
+     "(86400*378) = 32659200",
+     "(86400*378) = 32659200",
+     "(86400*378) = 32659200",
+     "(7*24*3600) = 604800"
+    ],
+    "steps": 8,
+    "seconds": 18.2,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 23 weeks?",
+    "expected": "13910400",
+    "answer": "604,800",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(23 * 7) = 161",
+     "60 * 60 * 24 = 86400",
+     "604800 / 161 = 3756.52",
+     "604800 / 161 = 3756.52",
+     "60 * 60 = 3600",
+     "3756.52 * 7 = 26295.6",
+     "(3756.52 * 7) = 26295.6",
+     "(3756.52 * 161) = 604800"
+    ],
+    "steps": 7,
+    "seconds": 12.5,
+    "error": ""
+   },
+   {
+    "group": "exact_fraction",
+    "question": "What is 962171 divided by 620003? Give the answer to four decimal places.",
+    "expected": "962171/620003",
+    "answer": "The result of dividing 962171 by 620003 is 1.5519.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(962171 / 620003) = 1.5519",
+     "(962171 / 620003) = 1.5519"
+    ],
+    "steps": 8,
+    "seconds": 18.9,
+    "error": ""
+   },
+   {
+    "group": "exact_fraction",
+    "question": "What is 781391 divided by 117508? Give the answer to four decimal places.",
+    "expected": "781391/117508",
+    "answer": "The answer is 6.6497.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(781391 / 117508) = 6.6497"
+    ],
+    "steps": 7,
+    "seconds": 12.3,
+    "error": ""
+   },
+   {
+    "group": "powers",
+    "question": "What is 70 to the power of 12?",
+    "expected": "13841287201000000000000",
+    "answer": "The answer is 13841287201000000000000 radians.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(70)^12 = 13841287201000000000000"
+    ],
+    "steps": 8,
+    "seconds": 14.3,
+    "error": ""
+   },
+   {
+    "group": "powers",
+    "question": "What is 80 to the power of 9?",
+    "expected": "134217728000000000",
+    "answer": "3.16e+10.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "9*1.9031 = 17.1279"
+    ],
+    "steps": 8,
+    "seconds": 15.1,
+    "error": ""
+   },
+   {
+    "group": "comparison",
+    "question": "Machine A makes 6033 parts an hour for 191 hours. Machine B makes 4351 parts an hour for 691 hours. How many parts does the more productive machine make in total?",
+    "expected": "3006541",
+    "answer": "Machine B makes more parts in total with a total of 3007005 parts.",
+    "correct": false,
+    "settled_exactly": true,
+    "calcs": [
+     "(6033*191) = 1152303",
+     "(4351*691) = 3006541"
+    ],
+    "steps": 8,
+    "seconds": 15.6,
+    "error": ""
+   },
+   {
+    "group": "comparison",
+    "question": "Machine A makes 1978 parts an hour for 485 hours. Machine B makes 5005 parts an hour for 174 hours. How many parts does the more productive machine make in total?",
+    "expected": "959330",
+    "answer": "The more productive machine makes a total of 959330 + 870870 = 1830200 parts.",
+    "correct": true,
+    "settled_exactly": true,
+    "calcs": [
+     "(1978*485) = 959330",
+     "(5005*174) = 870870"
+    ],
+    "steps": 8,
+    "seconds": 15.4,
+    "error": ""
+   }
+  ]
+ },
+ "gate_off": {
+  "n": 20,
+  "correct": 2,
+  "correct_rate": 0.1,
+  "settled_exactly": 0,
+  "computed_but_unused": 0,
+  "steps_mean": 7.35,
+  "errors": 0,
+  "per_group": {
+   "long_multiplication": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "long_addition": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "long_subtraction": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "awkward_percentage": {
+    "n": 2,
+    "correct": 1,
+    "settled": 0
+   },
+   "division_with_remainder": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "word_problem": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "unit_chain": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "exact_fraction": {
+    "n": 2,
+    "correct": 1,
+    "settled": 0
+   },
+   "powers": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   },
+   "comparison": {
+    "n": 2,
+    "correct": 0,
+    "settled": 0
+   }
+  },
+  "rows": [
+   {
+    "group": "long_multiplication",
+    "question": "What is 53431930048 * 3565?",
+    "expected": "190484830621120",
+    "answer": "189511111411984.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 20.3,
+    "error": ""
+   },
+   {
+    "group": "long_multiplication",
+    "question": "What is 51395252287 * 5521?",
+    "expected": "283753187876527",
+    "answer": "I can't calculate that exactly as it is a very large number.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 11.4,
+    "error": ""
+   },
+   {
+    "group": "long_addition",
+    "question": "What is 193048999061 plus 479849142350?",
+    "expected": "672898141411",
+    "answer": "The result of adding 193048999061 to 479849142350 is 241493734411.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 14.1,
+    "error": ""
+   },
+   {
+    "group": "long_addition",
+    "question": "What is 446174485585 plus 377327695495?",
+    "expected": "823502181080",
+    "answer": "823502181980.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 15.8,
+    "error": ""
+   },
+   {
+    "group": "long_subtraction",
+    "question": "Subtract 68379748377 from 2753273712715. What is left?",
+    "expected": "2684893964338",
+    "answer": "The result is -268470100994.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 10.8,
+    "error": ""
+   },
+   {
+    "group": "long_subtraction",
+    "question": "Subtract 84869938002 from 3054364818243. What is left?",
+    "expected": "2969494880241",
+    "answer": "3054364818243 - 84869938002 = -54326279957",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 16.5,
+    "error": ""
+   },
+   {
+    "group": "awkward_percentage",
+    "question": "What is 37 percent of 1426321?",
+    "expected": "52773877/100",
+    "answer": "5268.3877",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 15.9,
+    "error": ""
+   },
+   {
+    "group": "awkward_percentage",
+    "question": "What is 10 percent of 8596000?",
+    "expected": "859600",
+    "answer": "8596000",
+    "correct": true,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 14.0,
+    "error": ""
+   },
+   {
+    "group": "division_with_remainder",
+    "question": "How many whole times does 816 go into 80255013326, and what is the remainder? Give the remainder.",
+    "expected": "14",
+    "answer": "The quotient is 98128151 with a remainder of 371.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 15.2,
+    "error": ""
+   },
+   {
+    "group": "division_with_remainder",
+    "question": "How many whole times does 296 go into 4678432745, and what is the remainder? Give the remainder.",
+    "expected": "9",
+    "answer": "The whole number part is 15815547, and the remainder is 0.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 16.8,
+    "error": ""
+   },
+   {
+    "group": "word_problem",
+    "question": "A warehouse holds 848 crates with 78 jars in each. 55 jars are broken and thrown away. How many jars remain?",
+    "expected": "66089",
+    "answer": "66309 jars remain.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 14.1,
+    "error": ""
+   },
+   {
+    "group": "word_problem",
+    "question": "A warehouse holds 428 crates with 64 jars in each. 21 jars are broken and thrown away. How many jars remain?",
+    "expected": "27371",
+    "answer": "There is insufficient information to determine the exact number of jars that remain, because the problem does not specify how many jars are in each crate beyond 64.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 16.2,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 54 weeks?",
+    "expected": "32659200",
+    "answer": "There are 15551 seconds in 54 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 13.5,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 23 weeks?",
+    "expected": "13910400",
+    "answer": "There are 1,158,720 seconds in 23 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 14.1,
+    "error": ""
+   },
+   {
+    "group": "exact_fraction",
+    "question": "What is 962171 divided by 620003? Give the answer to four decimal places.",
+    "expected": "962171/620003",
+    "answer": "1.5523",
+    "correct": true,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 12.0,
+    "error": ""
+   },
+   {
+    "group": "exact_fraction",
+    "question": "What is 781391 divided by 117508? Give the answer to four decimal places.",
+    "expected": "781391/117508",
+    "answer": "The result of 781391 divided by 117508 is 0.6661.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 12.8,
+    "error": ""
+   },
+   {
+    "group": "powers",
+    "question": "What is 70 to the power of 12?",
+    "expected": "13841287201000000000000",
+    "answer": "The calculation of 70 to the power of 12 is approximately 1.97 \u00d7 10^33.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 11.9,
+    "error": ""
+   },
+   {
+    "group": "powers",
+    "question": "What is 80 to the power of 9?",
+    "expected": "134217728000000000",
+    "answer": "80^9 = 1.65 \u00d7 10^34.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 13.1,
+    "error": ""
+   },
+   {
+    "group": "comparison",
+    "question": "Machine A makes 6033 parts an hour for 191 hours. Machine B makes 4351 parts an hour for 691 hours. How many parts does the more productive machine make in total?",
+    "expected": "3006541",
+    "answer": "Machine A makes 1146067 parts.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 1,
+    "seconds": 6.4,
+    "error": ""
+   },
+   {
+    "group": "comparison",
+    "question": "Machine A makes 1978 parts an hour for 485 hours. Machine B makes 5005 parts an hour for 174 hours. How many parts does the more productive machine make in total?",
+    "expected": "959330",
+    "answer": "Machine B makes more parts than Machine A.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 14.4,
+    "error": ""
+   }
+  ]
+ }
+}

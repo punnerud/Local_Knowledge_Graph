@@ -61,7 +61,8 @@ include = ["src/mpe_lkg", "dev", "docs", "README.md", "Makefile", "pyproject.tom
 
 [tool.pytest.ini_options]
 testpaths = ["dev/tests"]
-pythonpath = ["src"]
+# dev/ holds the battery module the tests import; src/ holds the package.
+pythonpath = ["src", "dev"]
 markers = [
     "ollama: needs a running Ollama with the models named in the README",
     "hf: needs torch, transformers and a downloadable Hugging Face model",
