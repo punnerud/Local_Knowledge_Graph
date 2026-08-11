@@ -69,6 +69,17 @@ mpe-lkg
 
 Then open <http://localhost:5100>.
 
+**Which model matters more than anything else here.** Measured on the same 40 generated
+arithmetic questions, `qwen3:4b-instruct-2507` answers **82.5%** against `llama3.2:3b`'s
+**40%** — +42.5 points, 95% CI [+23.3, +61.7], replicated on a second battery — and does it in
+fewer steps, not more. That is a larger gain than every prompt and design change in this
+repository put together, so it is worth spending 2.5 GB on before spending an evening on
+prompts:
+
+```bash
+ollama pull qwen3:4b-instruct-2507-q4_K_M
+```
+
 It needs a local model, which it reaches through [Ollama](https://ollama.com). **You do not
 need to work that out from here** — start it and it will tell you what it found, what is
 missing, and the one command that fixes it. `mpe-lkg doctor` reports the same thing without

@@ -1,0 +1,230 @@
+{
+ "seed": 7002,
+ "gate_on": {
+  "n": 6,
+  "correct": 3,
+  "correct_rate": 0.5,
+  "settled_exactly": 1,
+  "computed_but_unused": 1,
+  "steps_mean": 6.833333333333333,
+  "errors": 0,
+  "per_group": {
+   "unit_chain": {
+    "n": 6,
+    "correct": 3,
+    "settled": 1
+   }
+  },
+  "rows": [
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 42 weeks?",
+    "expected": "25401600",
+    "answer": "Weeks to seconds: 606461.538462.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(7*24*60*60) = 604800",
+     "(3.8461538461538464 * 24 * 60 * 60) = 332307.692308",
+     "(3.8461538461538464 * 24 * 60 * 60) = 332307.692308",
+     "52/7 = 7.428571",
+     "(52/7) * 52 = 386.285714",
+     "(52/7) * 52 = 386.285714",
+     "(1/52 * 31,536,000) = 606461.538462",
+     "24*60*60 = 86400",
+     "1/52 = 0.019231"
+    ],
+    "steps": 8,
+    "seconds": 31.3,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 96 weeks?",
+    "expected": "58060800",
+    "answer": "Second in 96 week: 58060800.",
+    "correct": true,
+    "settled_exactly": false,
+    "calcs": [
+     "(7*24*60) = 10080",
+     "(96 * 60 * 60) = 345600",
+     "(24*60) = 1440",
+     "(52+1) = 53",
+     "(365.25 + 366.25)/2 = 365.75",
+     "(365.25*24*60*60) = 31557600",
+     "(365.25*24*60*60) = 31557600",
+     "(365.25*24*60*60) = 31557600",
+     "(365.25*24*60*60) = 31557600"
+    ],
+    "steps": 8,
+    "seconds": 35.2,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 20 weeks?",
+    "expected": "12096000",
+    "answer": "Second in 20 week: 12096000.",
+    "correct": true,
+    "settled_exactly": false,
+    "calcs": [
+     "(20*7)*24*60 = 201600",
+     "(24*60)*7 = 10080",
+     "(366/365)*86400 = 86636.712329",
+     "(24*60)*7 = 10080",
+     "(24*60)*7 = 10080"
+    ],
+    "steps": 2,
+    "seconds": 16.9,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 52 weeks?",
+    "expected": "31449600",
+    "answer": "Year length: 366.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [
+     "(60*60) = 3600",
+     "(52*7) = 364",
+     "(60*60)*24 = 86400",
+     "(365+1) = 366"
+    ],
+    "steps": 7,
+    "seconds": 13.1,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 70 weeks?",
+    "expected": "42336000",
+    "answer": "Day in 1 week: 7.",
+    "correct": false,
+    "settled_exactly": true,
+    "calcs": [
+     "(70*7*24*60*60) = 42336000",
+     "(60*60*24) = 86400",
+     "(60*60) = 3600",
+     "(60*60*24*365) = 31536000"
+    ],
+    "steps": 8,
+    "seconds": 15.3,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 44 weeks?",
+    "expected": "26611200",
+    "answer": "Second in 44 week: 26611200.",
+    "correct": true,
+    "settled_exactly": false,
+    "calcs": [
+     "(52*7)*60*60*24*365.25 = 11486966400",
+     "(3600*24*7) = 604800",
+     "(365.25 / 52) = 7.024038",
+     "(24*60*60) = 86400",
+     "(365.25 / 52) * 24 * 60 * 60 = 606876.923077",
+     "(24*60*60) = 86400",
+     "(365.25 / 52) * 24 * 60 * 60 = 606876.923077",
+     "1 / (((365.25 / 52) * 4)) = 0.035592",
+     "(28.0962) * 86,400 = 2427511.68",
+     "(86,400 / 24) * 60 * 7 = 1512000"
+    ],
+    "steps": 8,
+    "seconds": 37.3,
+    "error": ""
+   }
+  ]
+ },
+ "gate_off": {
+  "n": 6,
+  "correct": 0,
+  "correct_rate": 0.0,
+  "settled_exactly": 0,
+  "computed_but_unused": 0,
+  "steps_mean": 7.833333333333333,
+  "errors": 0,
+  "per_group": {
+   "unit_chain": {
+    "n": 6,
+    "correct": 0,
+    "settled": 0
+   }
+  },
+  "rows": [
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 42 weeks?",
+    "expected": "25401600",
+    "answer": "There are 2,592,000 seconds in 42 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 17.2,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 96 weeks?",
+    "expected": "58060800",
+    "answer": "There are 57,220,800 seconds in 96 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 20.8,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 20 weeks?",
+    "expected": "12096000",
+    "answer": "There are 604800 seconds in 20 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 16.1,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 52 weeks?",
+    "expected": "31449600",
+    "answer": "There are approximately 1,461,120,000 seconds in 52 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 20.5,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 70 weeks?",
+    "expected": "42336000",
+    "answer": "There are 2,920,800 seconds in 70 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 8,
+    "seconds": 21.5,
+    "error": ""
+   },
+   {
+    "group": "unit_chain",
+    "question": "How many seconds are there in 44 weeks?",
+    "expected": "26611200",
+    "answer": "There are 1,096,320 seconds in 44 weeks.",
+    "correct": false,
+    "settled_exactly": false,
+    "calcs": [],
+    "steps": 7,
+    "seconds": 16.4,
+    "error": ""
+   }
+  ]
+ }
+}
