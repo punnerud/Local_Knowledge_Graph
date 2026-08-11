@@ -50,6 +50,25 @@ def top_similarities(vectors, current_index: int, top_k: int = 2) -> list[tuple[
     return scored[:top_k]
 
 
+# Spring length in pixels, as a floor plus a similarity-proportional part.
+#
+# It was 300 * (1 - similarity), with no floor, and that is unreadable for the
+# reason the numbers make obvious: measured over two real runs, step-to-step
+# similarity sits between 0.54 and 0.92 with a median of 0.839, so the lengths
+# came out between 24 and 137 px with a median of 48. Nodes are 60 px across.
+# 27 of 30 edges were shorter than the circles they joined, so the graph could
+# only ever draw as a clump.
+#
+# The floor guarantees a gap wide enough to read a label in; the spread keeps
+# "more similar is closer" true, which is the whole point of the layout.
+EDGE_LENGTH_FLOOR = 160.0
+EDGE_LENGTH_SPREAD = 400.0
+
+
+def edge_length(similarity: float) -> float:
+    return EDGE_LENGTH_FLOOR + EDGE_LENGTH_SPREAD * (1.0 - similarity)
+
+
 def build_graph(node_ids: list[str], labels: list[str], vectors, top_k: int = 2) -> dict:
     """Build the whole graph from scratch out of the current steps.
 
@@ -73,7 +92,7 @@ def build_graph(node_ids: list[str], labels: list[str], vectors, top_k: int = 2)
                     "from": node_ids[previous],
                     "to": node_ids[index],
                     "value": float(similarity),
-                    "length": float(300 * (1 - similarity)),
+                    "length": edge_length(similarity),
                 }
             )
 
@@ -100,7 +119,7 @@ def serialize_graph_data(graph_data: dict) -> dict:
                 "from": edge["from"],
                 "to": edge["to"],
                 "value": float(edge["value"]),
-                "length": float(edge.get("length", 300 * (1 - float(edge["value"])))),
+                "length": float(edge.get("length", edge_length(float(edge["value"])))),
                 "label": f"{float(edge['value']):.2f}",
                 "font": {"size": 10},
             }

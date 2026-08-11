@@ -141,7 +141,10 @@
                 },
                 physics: {
                     solver: 'forceAtlas2Based',
-                    forceAtlas2Based: { springLength: 220, avoidOverlap: 0.6, gravitationalConstant: -120 },
+                    // avoidOverlap at full strength: the complaint the layout has to
+                    // answer is circles sitting on top of each other, and the edge
+                    // lengths now leave room for the solver to honour it.
+                    forceAtlas2Based: { springLength: 260, avoidOverlap: 1, gravitationalConstant: -140 },
                     stabilization: { iterations: 300 }
                 }
             });
@@ -150,7 +153,16 @@
             // to rest instead -- and raise the zoom ceiling, because fit() refuses to
             // magnify past 100% by default and a handful of nodes then sits in a
             // corner of a mostly empty canvas.
-            network.on('stabilized', () => network.fit({ animation: false, maxZoomLevel: 3 }));
+            network.on('stabilized', () => {
+                network.fit({ animation: false, maxZoomLevel: 3 });
+                // AND STOP. stabilization.iterations only bounds the opening solve;
+                // afterwards the solver keeps running, and on a graph where every
+                // node is joined to every other by a similarity edge it never
+                // reaches equilibrium -- so the whole thing drifts, slowly, forever,
+                // long after the answer is written. Freezing on stabilised is the
+                // difference between a diagram and an aquarium.
+                network.setOptions({ physics: { enabled: false } });
+            });
 
             // Hover: show where the reasoning walked to reach this step.
             network.on('hoverNode', (params) => highlightPath(params.node));
@@ -192,6 +204,9 @@
         }
 
         function updateGraph(graphData) {
+            // New nodes need the solver back: it switched itself off when the
+            // previous layout settled, and switches off again on 'stabilized'.
+            if (network) network.setOptions({ physics: { enabled: true } });
             const incoming = new Set(graphData.nodes.map(n => n.id));
             graphData.nodes.forEach(node => {
                 if (nodes.get(node.id)) { nodes.update(node); } else { nodes.add(node); }

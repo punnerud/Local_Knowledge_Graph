@@ -91,7 +91,10 @@ class TestSerialization:
 
     def test_length_is_derived_when_absent(self):
         graph = {"nodes": [], "edges": [{"from": "a", "to": "b", "value": 0.25}]}
-        assert serialize_graph_data(graph)["edges"][0]["length"] == pytest.approx(225.0)
+        # 160 floor + 400 * (1 - 0.25). The floor is the point: without it a
+        # similarity of 0.84 -- the measured median -- produced a 48 px edge
+        # between two 60 px circles.
+        assert serialize_graph_data(graph)["edges"][0]["length"] == pytest.approx(460.0)
 
     def test_numpy_floats_become_json_safe_floats(self):
         graph = {"nodes": [], "edges": [{"from": "a", "to": "b", "value": np.float32(0.5)}]}
