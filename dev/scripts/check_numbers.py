@@ -37,6 +37,8 @@ SEARCH = "docs/claims/search_bench.json"
 SWEEP = "docs/claims/layer_sweep.json"
 LOOPS = "docs/claims/loops.json"
 EVAL = "docs/claims/eval.json"
+BATTERY = "docs/claims/battery_20260811.json"
+BATTERY_REPLICATION = "docs/claims/battery_99.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -334,6 +336,47 @@ FILE_CHECKS = [
         27.8,
         6.0,
         "identical configurations differ by ~28 points at n=18: read every gap against this",
+    ),
+    # --- The arithmetic gate, measured where arithmetic is the task ---
+    #
+    # The mixed eval could not decide this: arithmetic is one thread among five
+    # there, and the 28-point noise floor above swallowed the effect. On a battery
+    # of generated questions with numbers nothing has memorised, it is not close.
+    (
+        BATTERY,
+        lambda d: d["gate_on"]["correct_rate"] - d["gate_off"]["correct_rate"],
+        0.35,
+        0.20,
+        "the gate is worth about 35 points where arithmetic is the task",
+    ),
+    (
+        # Replication on a DIFFERENT battery -- fresh numbers, nothing tuned
+        # against them. This is the claim that makes the one above worth trusting.
+        BATTERY_REPLICATION,
+        lambda d: d["gate_on"]["correct_rate"] - d["gate_off"]["correct_rate"],
+        0.30,
+        0.20,
+        "and about the same again on a battery it has never seen",
+    ),
+    (
+        BATTERY,
+        # Without the gate the model is not merely worse, it is barely able to do
+        # this at all: 2 of 20 eleven-digit problems. Pinned because it is the
+        # thing the gate is for.
+        lambda d: float(d["gate_off"]["correct"]),
+        2.0,
+        2.0,
+        "unaided, the model gets almost none of these right",
+    ),
+    (
+        BATTERY,
+        # Computed exactly and then not used in the answer. Small, but not zero,
+        # and it is the failure that survived the spine fix -- worth watching
+        # rather than declaring solved.
+        lambda d: float(d["gate_on"]["computed_but_unused"]),
+        2.0,
+        2.0,
+        "a couple of runs still compute the right value and answer something else",
     ),
 ]
 
