@@ -25,6 +25,7 @@
         .vote-yes { background: #a5d6a7; border: 1px solid #2e7d32; color: #1b5e20; }
         .vote-no  { background: #f5c6c2; border: 1px solid #c0392b; color: #7b1f16; }
         .vote-lenses { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: #52514e; }
+        .probe-kind { font-size: 12px; color: #7a7975; margin: 2px 0 4px; font-style: italic; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
         #container { display: flex; flex-wrap: wrap; gap: 20px; }
         #left-panel { flex: 1 1 380px; min-width: 0; }
@@ -343,6 +344,42 @@
             steps.scrollTop = steps.scrollHeight;
         }
 
+        function showProbe(data) {
+            // Evidence, shown apart from the vote and labelled with how much it
+            // is worth. An arithmetic probe is graded against an exact evaluator
+            // and settles things; a consistency probe is the model agreeing with
+            // itself, which a confidently wrong answer also does.
+            const div = document.createElement('div');
+            div.className = 'step';
+            const h = document.createElement('h3');
+            h.textContent = data.asked
+                ? `Checks: ${data.held} of ${data.asked} held`
+                    + (data.at_edge ? ' — at the edge of what it knows' : '')
+                : 'Checks: nothing could be probed';
+            div.appendChild(h);
+
+            const tag = document.createElement('p');
+            tag.className = 'probe-kind';
+            tag.textContent = data.decisive
+                ? 'Arithmetic — graded against exact answers, so this decides.'
+                : (data.kind === 'consistency'
+                    ? 'Consistency — the model agreeing with itself. Suggestive, not proof: it can be consistently wrong.'
+                    : 'Nothing to check here.');
+            div.appendChild(tag);
+
+            const list = document.createElement('ul');
+            list.className = 'vote-lenses';
+            (data.checks || []).forEach(c => {
+                const li = document.createElement('li');
+                li.textContent = (c.held ? '✓ ' : '✗ ') + c.probe
+                               + (c.expected ? ` (expected ${c.expected})` : '');
+                list.appendChild(li);
+            });
+            div.appendChild(list);
+            steps.appendChild(div);
+            steps.scrollTop = steps.scrollHeight;
+        }
+
         function note(heading, body) {
             const div = document.createElement('div');
             div.className = 'step';
@@ -562,6 +599,12 @@
 
                 } else if (data.type === 'vote') {
                     showVote(data);
+
+                } else if (data.type === 'probe') {
+                    showProbe(data);
+
+                } else if (data.type === 'settled_by_probe') {
+                    note('Settled by checks, not by vote', data.answer);
 
                 } else if (data.type === 'deviation') {
                     note(`Disagreement (${data.votes} of ${data.of} checks)`,

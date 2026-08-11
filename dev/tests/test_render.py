@@ -415,3 +415,27 @@ class TestGraphToLog:
             assert "2 agree, 1 disagree" in page.inner_text("#steps")
             # The dissenting reason is reachable, not thrown away.
             assert "the total mass" in page.locator(".vote-no").first.get_attribute("title")
+
+    def test_a_probe_says_how_much_it_is_worth(self, page, tmp_path):
+        """Evidence and opinion are drawn apart, and labelled.
+
+        An arithmetic probe is graded against exact answers and settles things. A
+        consistency probe is the model agreeing with itself, which a confidently
+        memorised wrong answer also does -- and a reader told only "3 of 4 held"
+        cannot tell those apart.
+        """
+        with LiveServer(normal_script(3), tmp_path) as server:
+            run_query(page, server)
+            page.evaluate("""() => showProbe({
+                held: 0, asked: 3, at_edge: true, kind: 'arithmetic', decisive: true,
+                checks: [{probe: 'What is 13 plus 31?', held: false, expected: '44'}]})""")
+            text = page.inner_text("#steps")
+            assert "0 of 3 held" in text
+            assert "at the edge" in text
+            assert "so this decides" in text
+            assert "expected 44" in text
+
+            page.evaluate("""() => showProbe({
+                held: 3, asked: 4, at_edge: false, kind: 'consistency', decisive: false,
+                checks: [{probe: 'Which river runs through it?', held: true}]})""")
+            assert "consistently wrong" in page.inner_text("#steps")
