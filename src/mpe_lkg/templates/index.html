@@ -568,7 +568,10 @@
                          `About: ${data.about}. Exploring again.`);
 
                 } else if (data.type === 'agreed') {
-                    note(`Agreed — ${data.votes} of ${data.of} checks`, data.answer);
+                    note(data.by === 'wording'
+                            ? 'Agreed — two runs reached the same answer'
+                            : `Agreed — ${data.votes} of ${data.of} checks`,
+                         data.answer);
 
                 } else if (data.type === 'unresolved') {
                     note('Unresolved', `They disagree about ${data.about}.`);

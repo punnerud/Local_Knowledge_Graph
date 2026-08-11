@@ -152,6 +152,11 @@ ANGLE_SCHEMA = {
     "required": ["angles"],
 }
 
+NEXT_STEP_PROMPT = (
+    "Continue. Give the next step, or set next_action to 'final_answer' if the "
+    "question is settled."
+)
+
 ANGLE_STEP_PROMPT = (
     "Now do this one: {angle}\n"
     "Work it out concretely -- do not restate the plan or what you have already covered."
@@ -772,15 +777,22 @@ def reason(
             step_json = None
             truncated = False
 
-            if angles:
-                if step_number <= len(angles):
-                    messages.append({
-                        "role": "user",
-                        "content": _angle_prompt(angles, trails, step_number - 1),
-                    })
-                elif not final_answer:
-                    # The plan is walked; nothing is added by asking for more.
-                    break
+            # A user turn before every step, always. Without a plan this branch
+            # used to add nothing, so the conversation became system, user, then
+            # assistant after assistant -- malformed, and only silently tolerated.
+            # Found in the browser the first time a run used qwen3, which rejects
+            # it outright: HTTP 400, "Cannot have 2 or more assistant messages at
+            # the end of the list". llama3.2 had been accepting it all along.
+            if angles and step_number <= len(angles):
+                messages.append({
+                    "role": "user",
+                    "content": _angle_prompt(angles, trails, step_number - 1),
+                })
+            elif angles and not final_answer:
+                # The plan is walked; nothing is added by asking for more.
+                break
+            elif step_number > 1:
+                messages.append({"role": "user", "content": NEXT_STEP_PROMPT})
 
             for attempt in range(MAX_RETRIES_PER_STEP):
                 started = time.time()
@@ -1336,8 +1348,12 @@ def settle(
                 tally = vote(chat, prompt, earlier, answer)
                 yield {"type": "vote", "round": round_number, **tally}
             if same or (tally and tally["agreed"]):
+                # How agreement was reached, not just that it was. Two answers
+                # that matched word for word were never put to a vote, and
+                # reporting that as "0 of 0 checks" reads as a failed vote.
                 yield {"type": "agreed", "round": round_number, "answer": answer,
-                       "votes": (tally or {}).get("agree"),
+                       "by": "wording" if same else "vote",
+                       "votes": (tally or {}).get("agree", 0),
                        "of": len((tally or {}).get("ballots", []))}
                 yield _final(answer, round_number, started, agreed=True)
                 return
