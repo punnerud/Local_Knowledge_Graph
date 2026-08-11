@@ -154,3 +154,25 @@ class TestGrowthAcrossQuestions:
         hits = store.find_similar(vectors[321], top_k=3, model="m")
         assert hits[0]["text"] == "row 321"
         assert hits[0]["similarity"] == pytest.approx(1.0, abs=1e-5)
+
+
+def test_the_version_is_declared_once_and_agrees_with_itself():
+    """__init__ and pyproject must not drift apart.
+
+    They did: the package metadata said 0.5.0 while `mpe-lkg --version` reported
+    0.4.0, because the bump touched one and not the other. A user reporting a bug
+    against the version their console printed would have been reporting it against
+    the wrong release.
+    """
+    import re
+    from pathlib import Path
+
+    import mpe_lkg
+
+    # Not tomllib: it arrived in 3.11 and this package supports 3.10. CI caught
+    # that within a minute of the test being written, which is the test doing its
+    # job on itself. A regex over one line is the smaller tool for one field.
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "pyproject.toml").read_text()
+    declared = re.search(r'^version = "([^"]+)"', text, re.MULTILINE).group(1)
+    assert mpe_lkg.__version__ == declared
