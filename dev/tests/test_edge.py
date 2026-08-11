@@ -136,3 +136,64 @@ class TestEdge:
         assert report["asked"] == 0
         assert report["support"] == 0.0
         assert report["at_edge"] is False, "unknown is not the same as refuted"
+
+
+class TestTheProbeAgainstTheVote:
+    """Evidence beats opinion, but only the evidence that is actually evidence.
+
+    The arithmetic probe is graded against the exact evaluator, so it settles a
+    disagreement outright -- that is not a majority overruling a minority, it is
+    arithmetic. The consistency probe is the model agreeing with itself, which a
+    confidently memorised wrong answer also does, so it is never allowed to
+    decide anything on its own.
+    """
+
+    def test_only_the_arithmetic_probe_calls_itself_decisive(self):
+        chat = Answers(["44", "48", "42000"])
+        assert edge(chat, Words(), "What is 12 plus 30?", "42")["decisive"] is True
+
+    def test_a_consistency_probe_is_never_decisive(self):
+        import json
+
+        class Neighbours:
+            temperature = 0.7
+
+            def __init__(self):
+                self.calls = 0
+
+            def stream(self, messages, max_tokens, schema=None):
+                self.calls += 1
+                if schema is not None:
+                    yield json.dumps({"questions": ["Which river runs through it?"]})
+                else:
+                    yield "The Seine"
+
+        report = edge(Neighbours(), Words(), "What is the capital of France?", "Paris")
+        assert report["kind"] == "consistency"
+        assert report["decisive"] is False
+        assert report["support"] == 1.0, "it still reports what it found"
+
+    def test_nothing_probed_is_not_decisive_and_not_at_the_edge(self):
+        class Silent:
+            temperature = 0.7
+
+            def stream(self, messages, max_tokens, schema=None):
+                yield '{"questions": []}'
+
+        report = edge(Silent(), Words(), "Why is the sky blue?", "Scattering")
+        assert report["decisive"] is False
+        assert report["at_edge"] is False
+        assert report["support"] == 0.0
+
+    def test_an_answer_that_fails_moved_numbers_is_flagged_however_confident(self):
+        """The case this exists for: fluent, agreed upon, and wrong.
+
+        Two explorations can agree on a fifteen-digit product and both be wrong,
+        and three voters reading it can all nod. Moving the numbers does not care
+        how many agreed.
+        """
+        chat = Answers(["definitely not the right number"])
+        report = edge(chat, Words(), "What is 12 plus 30?", "42")
+        assert report["at_edge"] is True
+        assert report["decisive"] is True
+        assert report["held"] == 0

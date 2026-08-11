@@ -1367,6 +1367,31 @@ def settle(
             yield {"type": "deviation", "round": round_number, "about": focus,
                    "votes": tally["disagree"], "of": len(tally["ballots"])}
 
+            # A disagreement is where it matters most whether either side is on
+            # thin ice, so the probe runs here rather than on every answer. It is
+            # EVIDENCE against the vote's OPINION, and only the arithmetic probe
+            # is allowed to settle anything: its truth comes from the evaluator,
+            # while consistency is the model agreeing with itself, which a
+            # confidently memorised wrong answer does too.
+            supported = None
+            for candidate in (answers[-2], answers[-1]):
+                report = edge(chat, embedder, prompt, candidate)
+                yield {"type": "probe", "round": round_number, "answer": candidate,
+                       **{k: v for k, v in report.items() if k != "checks"},
+                       "checks": report["checks"][:6]}
+                if report["decisive"] and not report["at_edge"]:
+                    supported = candidate if supported is None else None
+                elif report["decisive"] and report["at_edge"] and supported is None:
+                    supported = ""      # this one is out; the other may stand
+
+            if supported:
+                # One side is held up by checks nothing can argue with. That is
+                # not a majority overruling a minority, it is arithmetic.
+                yield {"type": "settled_by_probe", "round": round_number,
+                       "answer": supported}
+                yield _final(supported, round_number, started, agreed=True)
+                return
+
     # No two rounds agreed. Saying so beats picking one, which would be exactly
     # the single-model verdict this is built to avoid.
     if not answers:
@@ -1637,8 +1662,15 @@ def edge(chat, embedder, question: str, answer: str, *, want: int = 4) -> dict:
                            "held": steady, "said": said[:80]})
 
     held = sum(1 for c in checks if c["held"])
+    # Which probe ran, because they are not worth the same. Arithmetic is graded
+    # against the exact evaluator and settles the matter; consistency is the model
+    # agreeing with itself, which a confidently memorised wrong answer also does.
+    kind = "arithmetic" if any(c["kind"] == "arithmetic" for c in checks) else (
+        "consistency" if checks else "none")
     return {
         "checks": checks,
+        "kind": kind,
+        "decisive": kind == "arithmetic",
         "held": held,
         "asked": len(checks),
         # No checks is not confidence. An unprobed answer scores zero, so a
