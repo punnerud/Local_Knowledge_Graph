@@ -354,3 +354,70 @@ class TestNoveltyDrivenLength:
                              embedder=DeterministicEmbedding(32),
                              detect_repeats=False, synthesise=False))
         assert not [e for e in events if e["type"] == "repeat"]
+
+
+class TestArithmeticGate:
+    """Sums the record can evaluate exactly are not a matter of opinion.
+
+    Measured motivation: pushing runs to eight steps lifted hard questions from
+    50 % to 62 % and dropped multi-step arithmetic from 94 % to 67 %. The failures
+    were "10080 minutes in a fortnight" -- that is a week -- and "6.00 change" from
+    a 20 note on 13.50 of goods. Neither is a reasoning failure.
+    """
+
+    def test_a_wrong_sum_is_caught_and_redone(self, flask_client):
+        wrong = step("Compute", "A fortnight is 14 * 24 * 60 = 10080 minutes.")
+        right = step("Compute", "A fortnight is 14 * 24 * 60 = 20160 minutes.", "final_answer")
+        client, _ = flask_client([wrong, right, "20160 minutes."])
+
+        events = read_events(client.get("/query?query=q"))
+        caught = [e for e in events if e["type"] == "arithmetic"]
+
+        assert caught, "the sum is wrong and the record can prove it"
+        assert "20160" in caught[0]["errors"][0]
+        assert not [e for e in events if e["type"] == "step" and "10080" in e["content"]]
+
+    def test_a_correct_sum_passes_untouched(self, flask_client):
+        client, _ = flask_client([step("Compute", "14 * 24 * 60 = 20160 minutes.", "final_answer"),
+                                  "20160 minutes."])
+        events = read_events(client.get("/query?query=q"))
+        assert not [e for e in events if e["type"] == "arithmetic"]
+
+    def test_rounding_is_not_treated_as_an_error(self, flask_client):
+        """28.27 for 28.2743 is correct rounding, and flagging it would be wrong."""
+        client, _ = flask_client([step("Area", "The area is 3.14159 * 9 = 28.27.", "final_answer"),
+                                  "About 28.27."])
+        events = read_events(client.get("/query?query=q"))
+        assert not [e for e in events if e["type"] == "arithmetic"]
+
+    def test_a_definition_is_not_a_sum(self, flask_client):
+        """x = 5 is a definition. Checking it would invent an error."""
+        client, _ = flask_client([step("Set up", "Let x = 5 and y = 12.", "final_answer"),
+                                  "x is 5."])
+        events = read_events(client.get("/query?query=q"))
+        assert not [e for e in events if e["type"] == "arithmetic"]
+
+    def test_a_model_that_will_not_correct_itself_still_terminates(self, flask_client):
+        wrong = step("Compute", "14 * 24 * 60 = 10080 minutes.")
+        client, _ = flask_client([wrong], repeat_last=True)
+
+        events = read_events(client.get("/query?query=q"))
+        assert events[-1]["type"] == "done_stream"
+        assert len([e for e in events if e["type"] == "arithmetic"]) <= 3
+
+    def test_how_many_sums_were_checked_is_reported(self, flask_client):
+        client, _ = flask_client([step("Compute", "2 + 2 = 5.", "final_answer"),
+                                 step("Compute", "2 + 2 = 4.", "final_answer"), "Four."])
+        done = [e for e in read_events(client.get("/query?query=q")) if e["type"] == "done"][0]
+        assert done["sums_checked"] >= 1
+        assert done["sums_corrected"] >= 1
+
+    def test_the_gate_can_be_turned_off(self, flask_client):
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        wrong = step("Compute", "14 * 24 * 60 = 10080 minutes.", "final_answer")
+        events = list(reason("q", chat=ScriptedChat([wrong], repeat_last=True),
+                             embedder=DeterministicEmbedding(32),
+                             check_arithmetic=False, synthesise=False))
+        assert not [e for e in events if e["type"] == "arithmetic"]

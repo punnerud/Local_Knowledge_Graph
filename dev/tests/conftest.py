@@ -15,8 +15,13 @@ sys.path.insert(0, str(ROOT))
 from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat  # noqa: E402
 
 
-def step(title: str, content: str, next_action: str = "continue") -> str:
-    return json.dumps({"title": title, "content": content, "next_action": next_action})
+def step(title: str, content: str, next_action: str = "continue", calc: str = "") -> str:
+    # calc is omitted unless asked for, so the scripts that predate it stay honest
+    # about what a model without the field sends.
+    body = {"title": title, "content": content, "next_action": next_action}
+    if calc:
+        body["calc"] = calc
+    return json.dumps(body)
 
 
 def normal_script(n_steps: int = 6) -> list[str]:

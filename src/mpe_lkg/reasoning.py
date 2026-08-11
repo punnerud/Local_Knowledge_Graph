@@ -14,6 +14,8 @@ import re
 import time
 from collections.abc import Iterator
 
+from .arithmetic import as_text, correction, evaluate
+from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
 from .novelty import assess
@@ -37,6 +39,9 @@ MAX_STEP_CHARS = 700
 # counter, so a model that kept answering too long, or kept trying to finish early,
 # held the loop forever while the browser sat waiting on a stream that never spoke.
 MAX_RETRIES_PER_STEP = 3
+# A wrong sum is worth redoing, but a model that keeps writing the same wrong sum
+# will do so however often it is told. Bounded, like every other retry here.
+MAX_ARITHMETIC_RETRIES = 3
 
 # MEASURED, AND THE SHORT VERSION LOST. This 233-token prompt is resent on every
 # call and reads like shouting, so it looked like an obvious saving. Three separate
@@ -56,7 +61,11 @@ SYSTEM_PROMPT = (
     "WHEN YOU SAY YOU ARE RE-EXAMINING, ACTUALLY RE-EXAMINE, AND USE ANOTHER APPROACH TO DO "
     "SO. DO NOT JUST SAY YOU ARE RE-EXAMINING. USE AT LEAST 3 METHODS TO DERIVE THE ANSWER. "
     "USE BEST PRACTICES. Keep the content of each step under "
-    f"{MAX_STEP_CHARS} characters."
+    f"{MAX_STEP_CHARS} characters. "
+    "If a step relies on a calculation, ALSO put that calculation in a 'calc' field as a "
+    "bare arithmetic expression with no words and no equals sign, for example "
+    "\"(17/100)*250\" or \"14*24*60\". It is evaluated exactly and the result is given "
+    "back to you, so you never have to do the sum yourself."
 )
 
 # Kept so the result stays reproducible rather than becoming folklore. Pass it as
@@ -203,14 +212,26 @@ def _redirect(novelty, step_texts: list[str]) -> str:
     )
 
 
-def _synthesise(chat: ChatBackend, question: str, thread: list[str]) -> str:
+def _synthesise(
+    chat: ChatBackend, question: str, thread: list[str], settled: list[str] | None = None
+) -> str:
     """One call that turns the thread into an answer. Empty string if it fails."""
     if not thread:
         return ""
     numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(thread, 1))
+    # Sums an exact evaluator has already settled. They are given separately from
+    # the thread because they are not the model's opinion and are not up for
+    # revision -- and because the step that produced one is often off the spine.
+    sums = ""
+    if settled:
+        unique = list(dict.fromkeys(settled))
+        sums = "\n\nThese have been calculated exactly and are correct:\n" + "\n".join(
+            f"  {s}" for s in unique
+        ) + "\nUse these figures. Do not recompute them."
     try:
         raw = "".join(chat.stream(
-            [{"role": "user", "content": ANSWER_PROMPT.format(question=question, thread=numbered)}],
+            [{"role": "user", "content": ANSWER_PROMPT.format(
+                question=question, thread=numbered) + sums}],
             300,
         ))
     except BackendError:
@@ -242,6 +263,7 @@ def reason(
     max_novelty_retries: int = 3,
     system_prompt: str = "",
     decompose: int = 0,
+    check_arithmetic: bool = True,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -257,6 +279,23 @@ def reason(
     dry_streak = 0
     retries_spent = 0
     retries_that_helped = 0
+    sums_checked = 0
+    sums_corrected = 0
+    # Every sum the run settled exactly, kept with the step it came from. Both
+    # halves of that were measured the hard way:
+    #
+    # Computing a number exactly is worth nothing if it does not reach the answer:
+    # the loop settled "20 - 13.5 = 6.5" and still answered 2.50. So they are handed
+    # to the synthesis rather than left in the step text.
+    #
+    # But handing over ALL of them is worse than handing over none. A model
+    # exploring eight angles also writes "17*250" and "(17/1)*100", and presenting
+    # those under a heading saying they are correct is an invitation to pick one:
+    # multi-step accuracy fell to 50% against 100%, on answers like "604800 minutes
+    # in a fortnight" -- exactly right, for seconds in a week. So each sum keeps the
+    # index and title of its step, and only those on the strongest path are shown.
+    settled: list[tuple[int, str, str]] = []
+    arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
     step_events = 0
@@ -333,6 +372,45 @@ def reason(
             title = str(step_json.get("title", "")).strip()
             next_action = str(step_json.get("next_action", "continue")).strip()
 
+            calc = str(step_json.get("calc", "")).strip()
+            if check_arithmetic and calc:
+                exact = evaluate(calc)
+                if exact is not None:
+                    sums_checked += 1
+                    stated = as_text(exact)
+                    settled.append((len(step_texts), title or f"Step {step_number}",
+                                    f"{calc} = {stated}"))
+                    # The exact value is appended rather than substituted: the
+                    # model's own wording stays, and the number it can be held to
+                    # sits beside it. The synthesis step reads this.
+                    if stated not in content.replace(",", ""):
+                        sums_corrected += 1
+                        content = f"{content} ({calc} = {stated})"
+                        step_json["content"] = content
+                    yield {
+                        "type": "calc",
+                        "step": step_number,
+                        "expression": calc,
+                        "value": stated,
+                    }
+
+            if check_arithmetic:
+                wrong = arithmetic_errors(content)
+                sums_checked += 1
+                if wrong and arithmetic_retries < MAX_ARITHMETIC_RETRIES:
+                    # A sum the record can evaluate exactly is not a matter of
+                    # opinion. Hand back the corrected figure and let the model
+                    # redo the step around it.
+                    arithmetic_retries += 1
+                    sums_corrected += 1
+                    messages.append({"role": "user", "content": correction(wrong)})
+                    yield {
+                        "type": "arithmetic",
+                        "step": step_number,
+                        "errors": [c.describe() for c in wrong],
+                    }
+                    continue
+
             content_vec = embedder.embed([content])[0]
             title_vec = embedder.embed([title or content[:60]])[0]
 
@@ -381,7 +459,14 @@ def reason(
             messages.append({"role": "assistant", "content": json.dumps(step_json)})
             wants_to_finish = next_action == "final_answer" or "boxed" in content.lower()
 
-            if wants_to_finish and len(node_ids) >= max(min_steps, 1):
+            # Angles still unworked. A plain step floor was tried before and it
+            # produced padding -- the model reached the answer at step 4, was told
+            # it had given 4 of 5 steps, and wrote three that added nothing. The
+            # difference here is that each remaining step has a named job rather
+            # than a quota to fill, so "keep going" means something specific.
+            angles_left = bool(angles) and step_number < len(angles)
+
+            if wants_to_finish and not angles_left and len(node_ids) >= max(min_steps, 1):
                 # This step *is* the answer. Announcing it as a step and then again as
                 # the final answer would print the same text twice on the page and
                 # draw two nodes over identical content.
@@ -419,7 +504,14 @@ def reason(
             # is where a prompt that rewards exploring alternatives naturally ends.
             spine = _spine(node_ids, labels, vectors, top_k=top_k)
             started = time.time()
-            synthesised = _synthesise(chat, prompt, [step_texts[i] for i in spine])
+            on_spine = set(spine)
+            # Sums from abandoned branches are not evidence about the answer. If the
+            # spine happens to hold none, showing all of them is no better than
+            # showing none, so nothing is shown.
+            thread_sums = [f"{title}: {sum_}" for i, title, sum_ in settled if i in on_spine]
+            synthesised = _synthesise(
+                chat, prompt, [step_texts[i] for i in spine], thread_sums
+            )
             total_thinking_time += time.time() - started
             if synthesised:
                 final_answer = synthesised
@@ -453,6 +545,8 @@ def reason(
             "total_time": total_thinking_time,
             "steps": step_events,
             "edge_spread": edge_weight_spread(serialized),
+            "sums_checked": sums_checked,
+            "sums_corrected": sums_corrected,
             "novelty_retries": retries_spent,
             "novelty_retries_that_helped": retries_that_helped,
             "embedding": embedder.describe(),
