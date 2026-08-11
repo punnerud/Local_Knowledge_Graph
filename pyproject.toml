@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mpe-lkg"
-version = "0.7.0"
+version = "0.7.1"
 description = "Local Knowledge Graph: a local LLM reasons step by step, and the steps become a graph."
 readme = "README.md"
 requires-python = ">=3.10"
