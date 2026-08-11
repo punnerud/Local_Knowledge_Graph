@@ -25,8 +25,6 @@ from mpe_lkg.arithmetic import as_text, evaluate
 from mpe_lkg.backends import STEP_SCHEMA
 from mpe_lkg.reasoning import _synthesise
 
-mpeqs = pytest.importorskip("mpeqs", reason="the arithmetic gate is an optional extra")
-
 
 class Recorder:
     """A chat backend that answers nothing and remembers what it was asked."""

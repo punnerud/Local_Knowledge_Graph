@@ -296,7 +296,6 @@ class TestGraphToLog:
         A reader can check "20-13.5 = 6.5" at a glance in a way they cannot check a
         paragraph of reasoning.
         """
-        pytest.importorskip("mpeqs", reason="the arithmetic gate is an optional extra")
         script = [
             step("Total", "Three items at 4.50 each.", calc="3*4.5"),
             step("Change", "Subtract from the note.", "final_answer", calc="20-13.5"),
@@ -312,7 +311,6 @@ class TestGraphToLog:
 
     def test_sums_from_a_previous_run_are_cleared(self, page, tmp_path):
         # A stale "= 6.5" left over from the last question is worse than none.
-        pytest.importorskip("mpeqs", reason="the arithmetic gate is an optional extra")
         script = [
             step("A", "x", "final_answer", calc="2+2"), "Four.",
             step("B", "y", "final_answer", calc="3+3"), "Six.",

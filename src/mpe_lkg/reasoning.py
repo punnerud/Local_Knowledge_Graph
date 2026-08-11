@@ -459,7 +459,14 @@ def reason(
             messages.append({"role": "assistant", "content": json.dumps(step_json)})
             wants_to_finish = next_action == "final_answer" or "boxed" in content.lower()
 
-            if wants_to_finish and len(node_ids) >= max(min_steps, 1):
+            # Angles still unworked. A plain step floor was tried before and it
+            # produced padding -- the model reached the answer at step 4, was told
+            # it had given 4 of 5 steps, and wrote three that added nothing. The
+            # difference here is that each remaining step has a named job rather
+            # than a quota to fill, so "keep going" means something specific.
+            angles_left = bool(angles) and step_number < len(angles)
+
+            if wants_to_finish and not angles_left and len(node_ids) >= max(min_steps, 1):
                 # This step *is* the answer. Announcing it as a step and then again as
                 # the final answer would print the same text twice on the page and
                 # draw two nodes over identical content.

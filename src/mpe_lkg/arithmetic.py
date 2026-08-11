@@ -77,7 +77,8 @@ def check(text: str, *, limit: int = 6) -> list[Claim]:
     try:
         import mpeqs
     except ImportError:
-        # The feature is optional; without it the app behaves as it did before.
+        # A declared dependency, so this should not happen. Kept because a broken
+        # install showing a working app minus the exact sums beats a stack trace.
         return []
 
     found: list[Claim] = []
@@ -126,7 +127,7 @@ def evaluate(expression: str):
 
         return Fraction(mpeqs.solve({"solver": "arith", "answer": text}))
     except ImportError:
-        return None
+        return None  # See check(): a declared dependency, defended against anyway.
     except Exception:
         # A refusal means the record could not derive it, which is not evidence
         # about the model. Say nothing rather than guessing.
