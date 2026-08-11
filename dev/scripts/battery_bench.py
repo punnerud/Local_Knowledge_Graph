@@ -32,8 +32,8 @@ OUT_DIR = pathlib.Path("docs/claims")
 
 
 def run_arm(questions, *, check_arithmetic: bool, decompose: int, budget: float,
-            select: bool = False) -> dict:
-    chat = backends.OllamaChat(backends.pick_chat_model())
+            select: bool = False, model: str = "") -> dict:
+    chat = backends.OllamaChat(model or backends.pick_chat_model())
     embedder = backends.OllamaEmbedding("")
     rows = []
     for index, question in enumerate(questions, 1):
@@ -113,6 +113,8 @@ def main() -> int:
     parser.add_argument("--decompose", type=int, default=8)
     parser.add_argument("--budget", type=float, default=120.0)
     parser.add_argument("--group", default="", help="only this group")
+    parser.add_argument("--model", default="",
+                        help="chat model to measure; defaults to whatever is installed")
     parser.add_argument("--select", action="store_true",
                         help="answer by choosing a computed fact instead of writing one")
     args = parser.parse_args()
@@ -124,11 +126,11 @@ def main() -> int:
             parser.error(f"no group {args.group!r}")
     print(f"battery: {len(questions)} questions, seed {args.seed}\n")
 
-    results = {}
+    results = {"model": args.model or "installed default"}
     for label, gate in (("gate_on", True), ("gate_off", False)):
         print(f"--- {label} ---")
         rows = run_arm(questions, check_arithmetic=gate, decompose=args.decompose,
-                       budget=args.budget, select=args.select)["rows"]
+                       budget=args.budget, select=args.select, model=args.model)["rows"]
         results[label] = summarise(rows)
         results[label]["rows"] = rows
         print()
@@ -140,7 +142,8 @@ def main() -> int:
     print(f"  gate off: {off['correct']}/{off['n']} ({off['correct_rate']*100:.0f}%)")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"battery_{args.seed}.json"
+    tag = args.model.split(":")[0].replace("/", "-") if args.model else "default"
+    out = OUT_DIR / f"battery_{args.seed}_{tag}.json"
     out.write_text(json.dumps({"seed": args.seed, **results}, indent=1))
     print(f"\nwrote {out}")
     return 0

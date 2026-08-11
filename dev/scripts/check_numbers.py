@@ -40,6 +40,9 @@ EVAL = "docs/claims/eval.json"
 BATTERY = "docs/claims/battery_20260811.json"
 BATTERY_REPLICATION = "docs/claims/battery_99.json"
 UNITS = "docs/claims/battery_4242.json"
+QWEN = "docs/claims/battery_20260811_qwen3.json"
+QWEN_REPLICATION = "docs/claims/battery_555_qwen3.json"
+LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -361,13 +364,16 @@ FILE_CHECKS = [
     ),
     (
         BATTERY,
-        # Without the gate the model is not merely worse, it is barely able to do
-        # this at all: 2 of 20 eleven-digit problems. Pinned because it is the
-        # thing the gate is for.
+        # Unaided the model is not merely worse, it is barely able to do this at
+        # all. This was 2 of 20 when first pinned and is now 5: the battery was
+        # re-run after concrete examples were removed from the prompts, and
+        # dropping copyable numbers helped the no-arithmetic arm too. Recording
+        # the move rather than the old figure, because the old figure measured a
+        # different prompt.
         lambda d: float(d["gate_off"]["correct"]),
-        2.0,
-        2.0,
-        "unaided, the model gets almost none of these right",
+        5.0,
+        3.0,
+        "unaided, the model gets a quarter of them",
     ),
     (
         BATTERY,
@@ -395,6 +401,43 @@ FILE_CHECKS = [
         0.0,
         0.0,
         "and without it the model gets none of them",
+    ),
+    # --- The model, which turned out to be the whole game ---
+    #
+    # Every design change in this repository put together moves the battery less
+    # than swapping llama3.2:3b for qwen3:4b-instruct-2507. Pinned in both
+    # directions, on two independent batteries, because it is the number that
+    # should govern where effort goes next.
+    (
+        QWEN,
+        lambda d: d["gate_on"]["correct_rate"],
+        0.90,
+        0.15,
+        "qwen3:4b answers about 90 percent of the battery",
+    ),
+    (
+        QWEN_REPLICATION,
+        lambda d: d["gate_on"]["correct_rate"],
+        0.75,
+        0.15,
+        "and about 75 percent on a battery it has never seen",
+    ),
+    (
+        LLAMA_REPLICATION,
+        # The same questions, the same code, the same day. Pinned so the
+        # comparison cannot quietly become a comparison of two different things.
+        lambda d: d["gate_on"]["correct_rate"],
+        0.30,
+        0.15,
+        "llama3.2:3b answers about a third of the same questions",
+    ),
+    (
+        QWEN,
+        # It is not buying accuracy with length: fewer steps, better answers.
+        lambda d: float(d["gate_on"]["steps_mean"]),
+        5.5,
+        1.5,
+        "and reaches them in fewer steps, not more",
     ),
 ]
 
