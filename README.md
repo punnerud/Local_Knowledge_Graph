@@ -64,7 +64,13 @@ create_app().run(port=5100)
 
 ## Licence
 
-MIT.
+[The mpedb License 1.0](LICENSE) — the same licence as
+[mpedb](https://github.com/punnerud/mpedb) and [MPEqs](https://github.com/punnerud/MPEqs),
+byte for byte.
+
+Free of charge for every person and every organization, with one exception: a group whose
+revenue or valuation exceeds five billion dollars owes a one-time fee of seven US cents per
+device. Not an OSI-approved licence.
 
 ---
 

@@ -1,0 +1,49 @@
+The mpedb License 1.0
+
+Copyright (c) 2026 Morten Punnerud-Engelstad
+
+## Acceptance
+
+By using, copying, modifying, or distributing the software, you agree to all of the terms of this license. If you do not or cannot agree, you may not use the software.
+
+## Grant
+
+The licensor grants you a non-exclusive, worldwide, non-transferable, non-sublicensable license to use, copy, modify, and distribute the software and derivative works of it, for any purpose, subject to the conditions below.
+
+Use is FREE OF CHARGE for every person and every organization, except as the Large Enterprise Device Fee below provides.
+
+## Large Enterprise Device Fee
+
+1. **Who pays.** A "Large Enterprise" is any organization whose Group's consolidated annual revenue OR total valuation (public market capitalization, or the most recent fair valuation for private entities) exceeds USD 5,000,000,000, measured in 2026 United States dollars (adjusted for inflation by the US CPI-U from calendar year 2026), taking whichever of the two metrics is HIGHER.
+
+2. **Group.** "Group" means the organization together with every entity that directly or indirectly controls it, is controlled by it, or is under common control or ownership with it, through any chain and in any direction — expressly including a non-profit entity that owns or controls a for-profit entity and a for-profit entity that owns or controls a non-profit entity. The revenue and valuation tests apply to the Group's combined totals.
+
+3. **The fee.** A Large Enterprise owes the licensor a ONE-TIME fee of USD 0.07 (seven US cents), measured in 2026 United States dollars (adjusted for inflation by the US CPI-U from calendar year 2026), per physical device on which the software runs. Where the software runs on one or more servers, the fee is instead counted per physical device that connects, directly or indirectly, to those servers or to services backed by them. For any deployment, the applicable device count is the HIGHER of (a) the number of physical devices running the software and (b) the number of physical devices so connected. Each physical device is counted once; the fee for a device already paid for is not owed again.
+
+4. **Five-year tail.** A Group that meets the Large Enterprise threshold at any point in a calendar year is a Large Enterprise for that year and for the five following calendar years, regardless of its revenue or valuation in those years.
+
+5. **Payment.** Fees are payable to the licensor upon first deployment or, for devices added later, within 90 days of the device first running or connecting. Contact: morten@punnerud.net. A Large Enterprise must keep records sufficient to support its device count and provide a summary on reasonable request.
+
+## Distribution and Notices
+
+You must include a copy of this license, and keep this copyright notice, in all copies or substantial portions of the software, including modified copies and derivative works. You may not remove or obscure the license or the fee terms when distributing the software.
+
+## Scope
+
+This license applies to every version, commit, and artifact of the software published by the licensor, including versions published before this license text was added, to the fullest extent the licensor can so provide.
+
+## No Other Rights
+
+This license does not grant any trademark rights or any patent rights beyond those necessarily exercised by using the software as licensed.
+
+## Termination
+
+Your license ends immediately if you materially breach this license and do not cure the breach within 30 days of becoming aware of it. Unpaid fees survive termination.
+
+## Interpretation
+
+Any doubt or ambiguity in the interpretation of this license shall be resolved in favor of the licensor and this project.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

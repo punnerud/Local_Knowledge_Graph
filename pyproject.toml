@@ -4,18 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mpe-lkg"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local Knowledge Graph: a local LLM reasons step by step, and the steps become a graph."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 authors = [{ name = "Morten Punnerud-Engelstad" }]
 keywords = ["llm", "ollama", "knowledge-graph", "embeddings", "reasoning", "visualization"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Framework :: Flask",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
