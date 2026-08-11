@@ -15,7 +15,15 @@ import time
 from collections.abc import Iterator
 from fractions import Fraction
 
-from .arithmetic import as_text, convert, correction, evaluate, readable
+from .arithmetic import (
+    as_text,
+    convert,
+    correction,
+    evaluate,
+    product_unit,
+    readable,
+    restate,
+)
 from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
@@ -1213,7 +1221,18 @@ def explore(
     # provided information" -- it had every figure and would not multiply them.
     # Run as reason() it gets the arithmetic gate, the unit graph and the exact
     # evaluator, which is the whole point of having built them.
-    listed = "\n".join(f"  {q}\n    -> {a}" for q, a in findings)
+    # Restated in SI before composing. Measured: the same estimate came back as
+    # 4.08e10, 4.08e16 and 4.08e7 kilograms across three runs, with an identical
+    # mantissa each time -- the numbers were multiplied correctly and the exponent
+    # was guessed from the units. Removing the guess beats asking for care.
+    listed = "\n".join(f"  {q}\n    -> {restate(a)}" for q, a in findings)
+    # And the unit the answer must carry, worked out rather than guessed:
+    # m^2 * m * kg/m^3 is kg. Measured, this was the last guess left -- given the
+    # figures in SI the model composed 4.08e16 correctly every time and then wrote
+    # "grams" where the answer is kilograms.
+    unit = product_unit(" ".join(a for _, a in findings))
+    if unit:
+        listed += f"\n\nMultiplying those quantities gives an answer in {unit}."
     answer = ""
     for event in reason(EXPLORE_PROMPT.format(question=prompt, findings=listed),
                         chat=chat, embedder=embedder, **kwargs):

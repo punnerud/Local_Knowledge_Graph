@@ -225,3 +225,118 @@ def readable(value: Fraction) -> str:
     except ValueError:
         return text
     return f"{grouped}.{rest}" if rest else grouped
+
+
+# A quantity written in prose: "510,072,000 square kilometers", "0.8 grams per
+# cubic metre". Compound units are matched whole, because it is exactly the
+# compound ones the model gets wrong.
+QUANTITY_IN_TEXT = re.compile(
+    r"(?P<value>\d[\d,]*(?:\.\d+)?)\s*"
+    r"(?P<unit>(?:square|cubic)\s+\w+|\w+(?:\s+per\s+(?:square|cubic)\s+\w+)?)",
+    re.IGNORECASE,
+)
+
+# What each written unit is in SI base units, as (factor, si name). Only the ones
+# a physical estimate actually reaches for -- an incomplete table that refuses
+# what it does not know beats a complete-looking one that guesses.
+SI = {
+    "kilometer": (1000, "m"), "kilometre": (1000, "m"), "km": (1000, "m"),
+    "meter": (1, "m"), "metre": (1, "m"), "m": (1, "m"),
+    "centimeter": (Fraction(1, 100), "m"), "centimetre": (Fraction(1, 100), "m"),
+    "square kilometer": (10**6, "m^2"), "square kilometre": (10**6, "m^2"),
+    "square meter": (1, "m^2"), "square metre": (1, "m^2"),
+    "cubic kilometer": (10**9, "m^3"), "cubic kilometre": (10**9, "m^3"),
+    "cubic meter": (1, "m^3"), "cubic metre": (1, "m^3"),
+    "kilogram": (1, "kg"), "kg": (1, "kg"),
+    "gram": (Fraction(1, 1000), "kg"), "grams": (Fraction(1, 1000), "kg"),
+    "tonne": (1000, "kg"), "tonnes": (1000, "kg"),
+    "gram per cubic metre": (Fraction(1, 1000), "kg/m^3"),
+    "gram per cubic meter": (Fraction(1, 1000), "kg/m^3"),
+    "grams per cubic metre": (Fraction(1, 1000), "kg/m^3"),
+    "grams per cubic meter": (Fraction(1, 1000), "kg/m^3"),
+    "kilogram per cubic metre": (1, "kg/m^3"),
+    "kilograms per cubic metre": (1, "kg/m^3"),
+}
+
+
+def in_si(text: str) -> list[tuple[str, Fraction, str]]:
+    """Every quantity in the text, restated in SI base units.
+
+    Composition across mixed units is where an estimate falls apart, and it falls
+    apart quietly: measured, the same computation came back as 4.08e10, 4.08e16
+    and 4.08e7 kilograms across three runs. The mantissa was identical every time
+    -- the model multiplied the numbers correctly and guessed the exponent from
+    the units. Restating everything in metres and kilograms first removes the
+    guess rather than asking it to be careful.
+    """
+    out = []
+    for match in QUANTITY_IN_TEXT.finditer(_normalise(text)):
+        unit = " ".join(match.group("unit").lower().split())
+        entry = SI.get(unit) or SI.get(unit.rstrip("s"))
+        if entry is None:
+            continue
+        factor, si = entry
+        try:
+            value = Fraction(match.group("value").replace(",", ""))
+        except (ValueError, ZeroDivisionError):
+            continue
+        out.append((match.group(0), value * Fraction(factor), si))
+    return out
+
+
+def restate(text: str) -> str:
+    """The text with each quantity followed by its SI form, once."""
+    seen = set()
+    additions = []
+    for written, value, si in in_si(text):
+        key = (str(value), si)
+        if key in seen:
+            continue
+        seen.add(key)
+        additions.append(f"{written} = {readable(value)} {si}")
+    if not additions:
+        return text
+    return text + "  [in SI: " + "; ".join(additions) + "]"
+
+
+def _dimensions(si: str) -> dict[str, int]:
+    """A unit like 'kg/m^3' as exponents: {'kg': 1, 'm': -3}."""
+    top, _, bottom = si.partition("/")
+    out: dict[str, int] = {}
+    for part, sign in ((top, 1), (bottom, -1)):
+        for token in part.split("*"):
+            token = token.strip()
+            if not token:
+                continue
+            base, _, power = token.partition("^")
+            out[base] = out.get(base, 0) + sign * int(power or 1)
+    return {k: v for k, v in out.items() if v}
+
+
+def _render(dimensions: dict[str, int]) -> str:
+    top = [b if e == 1 else f"{b}^{e}" for b, e in sorted(dimensions.items()) if e > 0]
+    bottom = [b if e == -1 else f"{b}^{-e}" for b, e in sorted(dimensions.items()) if e < 0]
+    if not top and not bottom:
+        return "dimensionless"
+    return "/".join(["*".join(top) or "1"] + (["*".join(bottom)] if bottom else []))
+
+
+def product_unit(text: str) -> str:
+    """The unit you get by multiplying every quantity in the text together.
+
+    Measured, and it is the last guess left in a Fermi estimate: given the same
+    figures in SI the model composed 4.08e16 correctly every time and then wrote
+    "grams" where the answer is kilograms -- a thousandfold error in the label,
+    with the arithmetic untouched. m^2 * m * kg/m^3 is kg, and that is a
+    calculation rather than an opinion, so it is done here.
+
+    Empty when there is nothing to multiply, which is most questions.
+    """
+    units = [si for _, _, si in in_si(text)]
+    if len(units) < 2:
+        return ""
+    total: dict[str, int] = {}
+    for si in units:
+        for base, power in _dimensions(si).items():
+            total[base] = total.get(base, 0) + power
+    return _render({k: v for k, v in total.items() if v})
