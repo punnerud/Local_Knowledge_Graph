@@ -227,3 +227,63 @@ class TestNoExampleLeaks:
             bare = re.findall(r"\d[\d.,/*+()-]{2,}(?!\s*(?:characters|steps|sentences))",
                               text)
             assert not bare, f"copyable numbers {bare} in: {text[:90]}"
+
+
+class TestSubquestions:
+    """Splitting a question into standalone questions, guarded by the graph.
+
+    Neither guard is the model's to apply. It cannot tell it has drifted, because
+    each step looks reasonable from the one before, and it cannot tell it is
+    repeating, because it does not hold the earlier questions. Embeddings hold
+    both, which is the graph earning its place in the control flow rather than
+    only in the picture.
+    """
+
+    def _chat(self, questions):
+        import json as _json
+
+        class Split:
+            def stream(self, messages, max_tokens, schema=None):
+                yield _json.dumps({"questions": questions})
+
+        return Split()
+
+    def test_standalone_questions_come_back(self):
+        from mpe_lkg.reasoning import subquestions
+
+        asked = ["How heavy is the atmosphere?"]
+        out = subquestions(self._chat(["How heavy is the atmosphere in total?"]),
+                           Embedder(), "How heavy is the atmosphere?", 5)
+        assert out and all(q.strip() for q in out)
+        assert asked  # the parent is not silently required
+
+    def test_a_question_that_drifted_is_dropped(self):
+        """A different problem is not a way into this one."""
+        from mpe_lkg.reasoning import subquestions
+
+        chat = self._chat(["What is the average density of air in the atmosphere?",
+                           "Who won the 1966 World Cup final?"])
+        out = subquestions(chat, Embedder(),
+                           "How heavy is the air in the atmosphere?", 5)
+        assert not any("World Cup" in q for q in out)
+
+    def test_a_question_already_asked_is_dropped(self):
+        """The loop this structure can fall into, which at depth looks like progress."""
+        from mpe_lkg.reasoning import subquestions
+
+        parent = "How heavy is the air in the atmosphere?"
+        chat = self._chat([parent, "What is the density of air in the atmosphere?"])
+        out = subquestions(chat, Embedder(), parent, 5, asked=[parent])
+        assert parent not in out
+
+    def test_nothing_usable_is_an_empty_list_rather_than_a_guess(self):
+        from mpe_lkg.reasoning import subquestions
+
+        assert subquestions(self._chat([]), Embedder(), "anything at all?", 5) == []
+
+    def test_the_count_is_respected(self):
+        from mpe_lkg.reasoning import subquestions
+
+        many = [f"What is quantity number {i} of the atmosphere air?" for i in range(12)]
+        assert len(subquestions(self._chat(many), Embedder(),
+                                "What is the atmosphere air made of?", 3)) <= 3

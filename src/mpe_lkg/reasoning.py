@@ -185,6 +185,213 @@ def plan_angles(chat, question: str, want: int = 7) -> list[str]:
     return out[: want + 2]
 
 
+# How deep the decomposition may go. Each level multiplies the leaf count, so
+# depth 2 at seven angles is up to 49 things to work through and depth 3 is 343 --
+# far past any useful run. The bound is on DEPTH rather than on total steps
+# because a depth limit is a statement about how far a question is taken apart,
+# while a step cap just truncates wherever the budget happens to run out.
+MAX_DEPTH = 3
+
+# What one leaf is worth in wall clock. Measured: a step against a 3B-4B model on
+# this machine takes three to six seconds, so this is the observed cost with room
+# for a slow one rather than a guess.
+SECONDS_PER_LEAF = 8.0
+
+# A one-word part is a leaf without asking. This started at three words, which
+# was wrong and silently disabled the whole feature: an angle name IS a few words
+# by design ("atmospheric water mass"), so every part was a leaf by length and
+# nothing was ever split. The cheap guard swallowed the thing it was guarding.
+LEAF_WORDS = 1
+
+# Asked whether a part "can be settled in a single step", the model said yes to
+# everything -- including "atmospheric water mass", which is a humidity times a
+# volume. That is a request for permission to stop, and it always grants it.
+#
+# So the question is turned around into the first-principles one: what has to be
+# KNOWN before this can be worked out? A part is a leaf when the answer is
+# nothing, which the model can say honestly instead of being asked to justify
+# more work.
+SPLIT_PROMPT = (
+    "Working question: {question}\n\n"
+    "One part of it: {part}\n\n"
+    "What must be KNOWN before this part can be worked out? List the quantities "
+    "or facts it is built from -- at most {n}, each a few words.\n"
+    "If it rests on nothing else -- a figure that can simply be looked up, stated "
+    "or measured directly -- reply with an empty list.\n"
+    "Do not list the part itself, and do not list anything that is not needed to "
+    "produce it.\n"
+    'Reply as JSON: {{"angles": ["...", "..."]}}'
+)
+
+
+SUBQUESTION_PROMPT = (
+    "Question: {question}\n\n"
+    "Name {n} different questions whose answers, together, would let you answer "
+    "this one. Each must be a COMPLETE question that stands on its own and could "
+    "be handed to someone who has not seen the original.\n"
+    "They should approach the problem from different directions rather than being "
+    "steps of one method, so that if one leads nowhere the others still do.\n"
+    'Reply as JSON: {{"questions": ["...?", "...?"]}}'
+)
+
+SUBQUESTION_SCHEMA = {
+    "type": "object",
+    "properties": {"questions": {"type": "array", "items": {"type": "string"}}},
+    "required": ["questions"],
+}
+
+# How far a sub-question may drift from the one that spawned it. Below this it is
+# not a way into the problem, it is a different problem -- and recursion turns a
+# small drift at the top into an unrelated tree at the bottom.
+MIN_RELEVANCE = 0.45
+
+# And how similar two questions may be before the second is the first again.
+# Asking a question already asked is the loop this whole structure can fall into,
+# and at depth it does not look like a loop, it looks like progress.
+SAME_QUESTION = 0.93
+
+
+def subquestions(chat, embedder, question: str, want: int = 5,
+                 asked: list | None = None) -> list[str]:
+    """Questions that between them answer this one, filtered by the graph.
+
+    Two guards, and neither is the model's to apply. It cannot tell that it has
+    drifted, because each step looks reasonable from the step before, and it
+    cannot tell that it is repeating, because it does not hold the earlier
+    questions. Embeddings hold both.
+    """
+    try:
+        raw = "".join(chat.stream(
+            [{"role": "user", "content": SUBQUESTION_PROMPT.format(question=question, n=want)}],
+            400, schema=SUBQUESTION_SCHEMA,
+        ))
+    except BackendError:
+        return []
+
+    candidates = []
+    for item in extract_json(raw).get("questions") or []:
+        text = " ".join(str(item).split())[:160]
+        if text and text.lower() != question.lower():
+            candidates.append(text)
+    if not candidates:
+        return []
+
+    try:
+        vectors = embedder.embed([question, *(asked or []), *candidates])
+    except BackendError:
+        return candidates[:want]
+
+    root = vectors[0]
+    seen = list(vectors[1:1 + len(asked or [])])
+    kept = []
+    for text, vector in zip(candidates, vectors[1 + len(asked or []):], strict=True):
+        if similarity(root, vector) < MIN_RELEVANCE:
+            continue          # drifted off the problem
+        if any(similarity(vector, other) > SAME_QUESTION for other in seen):
+            continue          # asked already, one way or another
+        seen.append(vector)
+        kept.append(text)
+    return kept[:want]
+
+
+def plan_tree(chat, question: str, want: int = 7, *, depth: int = 2,
+              _part: str = "", _seen: set | None = None) -> list[dict]:
+    """Break a question down, and break the parts down again, to first principles.
+
+    A flat plan can only ever be as fine as the model's first pass. Asking each
+    part whether it is a single step of work, and splitting it again when it is
+    not, is what lets a large question end up as eighty small ones instead of
+    eight vague ones.
+
+    The decision is made ONCE PER PART, in a structured call, rather than in every
+    reasoning step. That is deliberate: model-authored control signals inside the
+    step loop were measured unreliable in this repository -- asked what a value
+    was, it answered "604800/7" -- and a planning call has nothing else to do.
+
+    Returns a list of ``{"angle": str, "parts": [...]}``, nested to ``depth``.
+    """
+    seen = _seen if _seen is not None else set()
+    if depth <= 0:
+        return []
+
+    if not _part:
+        names = plan_angles(chat, question, want)
+    elif len(_part.split()) <= LEAF_WORDS:
+        # Short enough to be one piece of work. Asking would cost a call to be
+        # told what the length already says.
+        return []
+    else:
+        names = _split(chat, question, _part, want)
+
+    tree = []
+    for name in names:
+        key = name.lower().strip()
+        # A part that repeats one already planned is the model going in a circle,
+        # and recursion turns a circle into an avalanche.
+        if key in seen:
+            continue
+        seen.add(key)
+        tree.append({
+            "angle": name,
+            "parts": plan_tree(chat, question, want, depth=depth - 1,
+                               _part=name, _seen=seen),
+        })
+    return tree
+
+
+def _split(chat, question: str, part: str, want: int) -> list[str]:
+    """The parts of one part, or nothing if it is already a single step of work."""
+    try:
+        raw = "".join(chat.stream(
+            [{"role": "user", "content": SPLIT_PROMPT.format(
+                part=part, question=question, n=want)}],
+            300, schema=ANGLE_SCHEMA,
+        ))
+    except BackendError:
+        return []
+    angles = extract_json(raw).get("angles") or []
+    out, seen = [], set()
+    for angle in angles:
+        text = " ".join(str(angle).split())[:80]
+        key = text.lower()
+        if text and key not in seen and key != part.lower():
+            seen.add(key)
+            out.append(text)
+    return out[:want]
+
+
+def leaves(tree: list[dict], _trail: tuple = ()) -> list[tuple[str, tuple]]:
+    """Every piece of work in the tree, depth first, with the path that reached it.
+
+    A branch that was split contributes its LEAVES and not itself: the parent is
+    the question those leaves answer between them, so working it as well would be
+    doing the same thing twice at two levels of detail.
+    """
+    out = []
+    for node in tree:
+        trail = (*_trail, node["angle"])
+        if node["parts"]:
+            out.extend(leaves(node["parts"], trail))
+        else:
+            out.append((node["angle"], trail))
+    return out
+
+
+def _angle_prompt(angles: list[str], trails: list[tuple], index: int) -> str:
+    """What to ask for this piece of work, and what it is a piece OF.
+
+    A leaf three levels down reads as a non sequitur on its own -- "the seconds in
+    an hour" is not obviously part of anything. Carrying the trail costs a line
+    and keeps the step anchored to the question it serves.
+    """
+    angle = angles[index]
+    trail = trails[index] if index < len(trails) else ()
+    if len(trail) > 1:
+        return ANGLE_STEP_PROMPT.format(
+            angle=f"{angle}\n(this is part of: {' -> '.join(trail[:-1])})")
+    return ANGLE_STEP_PROMPT.format(angle=angle)
+
+
 def _spine(node_ids: list[str], labels: list[str], vectors, top_k: int = 2) -> list[int]:
     """Indices of the steps on the strongest path, in order.
 
@@ -457,6 +664,11 @@ def reason(
     max_novelty_retries: int = 3,
     system_prompt: str = "",
     decompose: int = 0,
+    # How far to take the question apart. 1 is the flat plan that shipped: one
+    # round of angles, one step each. Above 1 each part is asked whether it is a
+    # single piece of work, and split again when it is not -- which is what lets a
+    # large question become eighty small ones rather than eight vague ones.
+    depth: int = 1,
     check_arithmetic: bool = True,
     # OFF by default, because it was measured and it lost. See _select: the
     # machinery is sound and the guarantee is real -- the answer cannot be a
@@ -525,9 +737,26 @@ def reason(
     # aimed at a named angle, so the steps differ by construction rather than by
     # hoping a model asked for "another step" finds something new to say.
     angles: list[str] = []
+    trails: list[tuple] = []
     if decompose:
         started = time.time()
-        angles = plan_angles(chat, prompt, decompose)
+        if depth > 1:
+            tree = plan_tree(chat, prompt, decompose, depth=min(depth, MAX_DEPTH))
+            found = leaves(tree)
+            angles = [name for name, _ in found]
+            trails = [trail for _, trail in found]
+            if tree:
+                # The budget follows the plan. A tree with 43 leaves against a
+                # 120-second wall clock is 43 pieces of work truncated at
+                # whichever one the clock lands on -- which is the same as not
+                # having planned. Taking a question apart and then refusing to
+                # spend the time on the parts is the worst of both.
+                max_steps = max(max_steps, len(angles) + 2)
+                time_budget = max(time_budget, len(angles) * SECONDS_PER_LEAF)
+                yield {"type": "tree", "tree": tree, "leaves": len(angles),
+                       "budget": round(time_budget)}
+        else:
+            angles = plan_angles(chat, prompt, decompose)
         total_thinking_time += time.time() - started
         if angles:
             yield {"type": "plan", "angles": angles}
@@ -547,7 +776,7 @@ def reason(
                 if step_number <= len(angles):
                     messages.append({
                         "role": "user",
-                        "content": ANGLE_STEP_PROMPT.format(angle=angles[step_number - 1]),
+                        "content": _angle_prompt(angles, trails, step_number - 1),
                     })
                 elif not final_answer:
                     # The plan is walked; nothing is added by asking for more.
