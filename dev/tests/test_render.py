@@ -322,3 +322,39 @@ class TestGraphToLog:
             # Not ["2+2 = 4", "3+3 = 6"]: the first run's sum belongs to the first
             # question, and leaving it up would attribute it to this one.
             assert [c.inner_text() for c in page.locator("#sums span").all()] == ["3+3 = 6"]
+
+    def test_the_graph_stops_moving_once_it_has_settled(self, page, tmp_path):
+        """Reported: the graph drifts forever, slowly, long after the answer is in.
+
+        stabilization.iterations only bounds the opening solve. Afterwards the
+        solver keeps running, and on a graph where every node is joined to every
+        other by a similarity edge it never reaches equilibrium.
+        """
+        with LiveServer(normal_script(6), tmp_path) as server:
+            run_query(page, server)
+            page.wait_for_function("() => network.physics.physicsEnabled === false", timeout=15_000)
+
+            # And it has actually come to rest, not merely been told to.
+            before = page.evaluate("() => JSON.stringify(network.getPositions())")
+            page.wait_for_timeout(700)
+            assert page.evaluate("() => JSON.stringify(network.getPositions())") == before
+
+    def test_a_second_run_lays_out_again_rather_than_staying_frozen(self, page, tmp_path):
+        # Freezing on stabilised is only safe if new nodes switch the solver back on.
+        script = normal_script(4) + normal_script(6)
+        with LiveServer(script, tmp_path) as server:
+            run_query(page, server)
+            page.wait_for_function("() => network.physics.physicsEnabled === false", timeout=15_000)
+            run_query(page, server, "A different question entirely?")
+            page.wait_for_function("() => network.physics.physicsEnabled === false", timeout=15_000)
+            positions = page.evaluate("() => Object.values(network.getPositions())")
+            # Laid out, not stacked at the origin.
+            assert len({(round(p["x"]), round(p["y"])) for p in positions}) == len(positions)
+
+    def test_edges_are_longer_than_the_circles_they_join(self, page, tmp_path):
+        """Measured: 27 of 30 edges were shorter than the 60 px nodes they connected."""
+        with LiveServer(normal_script(6), tmp_path) as server:
+            run_query(page, server)
+            lengths = [e["length"] for e in graph_state(page)["edges"]]
+            assert lengths, "no edges to check"
+            assert min(lengths) >= 160.0, f"shortest edge {min(lengths):.0f} px"
