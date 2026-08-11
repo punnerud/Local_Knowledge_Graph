@@ -25,9 +25,22 @@ STEP_SCHEMA = {
     "properties": {
         "title": {"type": "string"},
         "content": {"type": "string"},
+        # REQUIRED, with "" as the legal way to say "no sum here". It was optional
+        # first and the model never once filled it in -- structured output simply
+        # omits a field it is not obliged to produce. Required, it has to answer,
+        # and an empty string costs nothing.
+        #
+        # The point: a model writes arithmetic as prose -- "14 days at 1440
+        # minutes each, so 20160" -- which nothing can check. Asked for the
+        # expression outright, it hands over something an exact evaluator settles.
+        "calc": {
+            "type": "string",
+            "description": "The arithmetic this step relies on, as a bare expression "
+                           "like (17/100)*250. Empty string if the step has no calculation.",
+        },
         "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
     },
-    "required": ["title", "content", "next_action"],
+    "required": ["title", "content", "calc", "next_action"],
 }
 
 

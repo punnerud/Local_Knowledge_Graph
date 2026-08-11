@@ -109,3 +109,34 @@ def correction(bad: list[Claim]) -> str:
         "Redo this step with the corrected figure. Change only what the arithmetic "
         "changes; keep the rest of your reasoning."
     )
+
+
+def evaluate(expression: str):
+    """Evaluate an expression the model handed over, or None if it will not.
+
+    This is the other half of the same idea as ``check``, and the stronger half.
+    Rather than searching prose for something shaped like a sum, the step schema
+    asks for the expression outright, so what arrives is already machine-readable.
+    """
+    text = _normalise(str(expression or "")).strip().rstrip("=").strip()
+    if not text or not any(op in text for op in "+-*/"):
+        return None
+    try:
+        import mpeqs
+
+        return Fraction(mpeqs.solve({"solver": "arith", "answer": text}))
+    except ImportError:
+        return None
+    except Exception:
+        # A refusal means the record could not derive it, which is not evidence
+        # about the model. Say nothing rather than guessing.
+        return None
+
+
+def as_text(value: Fraction) -> str:
+    """A value a reader recognises: 42.5 rather than 85/2, 20160 rather than 20160/1."""
+    if value.denominator == 1:
+        return str(value.numerator)
+    rounded = round(float(value), 4)
+    return f"{rounded:g}"
+

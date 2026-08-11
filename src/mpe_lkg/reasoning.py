@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Iterator
 
-from .arithmetic import correction
+from .arithmetic import as_text, correction, evaluate
 from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
@@ -61,7 +61,11 @@ SYSTEM_PROMPT = (
     "WHEN YOU SAY YOU ARE RE-EXAMINING, ACTUALLY RE-EXAMINE, AND USE ANOTHER APPROACH TO DO "
     "SO. DO NOT JUST SAY YOU ARE RE-EXAMINING. USE AT LEAST 3 METHODS TO DERIVE THE ANSWER. "
     "USE BEST PRACTICES. Keep the content of each step under "
-    f"{MAX_STEP_CHARS} characters."
+    f"{MAX_STEP_CHARS} characters. "
+    "If a step relies on a calculation, ALSO put that calculation in a 'calc' field as a "
+    "bare arithmetic expression with no words and no equals sign, for example "
+    "\"(17/100)*250\" or \"14*24*60\". It is evaluated exactly and the result is given "
+    "back to you, so you never have to do the sum yourself."
 )
 
 # Kept so the result stays reproducible rather than becoming folklore. Pass it as
@@ -208,14 +212,26 @@ def _redirect(novelty, step_texts: list[str]) -> str:
     )
 
 
-def _synthesise(chat: ChatBackend, question: str, thread: list[str]) -> str:
+def _synthesise(
+    chat: ChatBackend, question: str, thread: list[str], settled: list[str] | None = None
+) -> str:
     """One call that turns the thread into an answer. Empty string if it fails."""
     if not thread:
         return ""
     numbered = "\n".join(f"{i}. {text}" for i, text in enumerate(thread, 1))
+    # Sums an exact evaluator has already settled. They are given separately from
+    # the thread because they are not the model's opinion and are not up for
+    # revision -- and because the step that produced one is often off the spine.
+    sums = ""
+    if settled:
+        unique = list(dict.fromkeys(settled))
+        sums = "\n\nThese have been calculated exactly and are correct:\n" + "\n".join(
+            f"  {s}" for s in unique
+        ) + "\nUse these figures. Do not recompute them."
     try:
         raw = "".join(chat.stream(
-            [{"role": "user", "content": ANSWER_PROMPT.format(question=question, thread=numbered)}],
+            [{"role": "user", "content": ANSWER_PROMPT.format(
+                question=question, thread=numbered) + sums}],
             300,
         ))
     except BackendError:
@@ -265,6 +281,12 @@ def reason(
     retries_that_helped = 0
     sums_checked = 0
     sums_corrected = 0
+    # Every sum the run settled exactly, as "expression = value". These are handed
+    # to the synthesis directly. Measured: the loop computed "20 - 13.5 = 6.5"
+    # correctly and the answer still came out as 2.50, because the step holding the
+    # value was not on the strongest path and the synthesis never saw it. Computing
+    # a number exactly is worth nothing if it does not reach the answer.
+    settled: list[str] = []
     arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
@@ -341,6 +363,27 @@ def reason(
                 content = "The model returned an empty step."
             title = str(step_json.get("title", "")).strip()
             next_action = str(step_json.get("next_action", "continue")).strip()
+
+            calc = str(step_json.get("calc", "")).strip()
+            if check_arithmetic and calc:
+                exact = evaluate(calc)
+                if exact is not None:
+                    sums_checked += 1
+                    stated = as_text(exact)
+                    settled.append(f"{calc} = {stated}")
+                    # The exact value is appended rather than substituted: the
+                    # model's own wording stays, and the number it can be held to
+                    # sits beside it. The synthesis step reads this.
+                    if stated not in content.replace(",", ""):
+                        sums_corrected += 1
+                        content = f"{content} ({calc} = {stated})"
+                        step_json["content"] = content
+                    yield {
+                        "type": "calc",
+                        "step": step_number,
+                        "expression": calc,
+                        "value": stated,
+                    }
 
             if check_arithmetic:
                 wrong = arithmetic_errors(content)
@@ -445,7 +488,7 @@ def reason(
             # is where a prompt that rewards exploring alternatives naturally ends.
             spine = _spine(node_ids, labels, vectors, top_k=top_k)
             started = time.time()
-            synthesised = _synthesise(chat, prompt, [step_texts[i] for i in spine])
+            synthesised = _synthesise(chat, prompt, [step_texts[i] for i in spine], settled)
             total_thinking_time += time.time() - started
             if synthesised:
                 final_answer = synthesised
