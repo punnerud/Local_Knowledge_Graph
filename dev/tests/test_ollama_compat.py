@@ -163,3 +163,50 @@ class TestMisalignedResponses:
         with pytest.raises(BackendError) as excinfo:
             backend.embed(["one"])
         assert "ollama serve" in excinfo.value.hint
+
+
+class TestConstrainedDecoding:
+    """A schema alone is not enough to get an answer out of some models.
+
+    Measured on qwen3:4b-instruct-2507: a schema-constrained call spent an
+    EIGHT-HUNDRED token budget entirely on whitespace and returned nothing, while
+    the same prompt with one added line answered in ten tokens. The model wants to
+    explain itself, the grammar forbids prose, and whitespace is the one thing the
+    grammar still allows -- so it emits that until the budget runs out.
+
+    It looks like a model that cannot follow a schema. It is a model being given
+    two contradictory orders, and this removes one of them.
+    """
+
+    def test_a_schema_call_also_asks_for_json_only(self):
+        from mpe_lkg.backends.ollama import JSON_ONLY, _json_only
+
+        messages = [{"role": "system", "content": "You reason."},
+                    {"role": "user", "content": "Pick one."}]
+        out = _json_only(messages)
+        assert out[-1]["content"].endswith(JSON_ONLY)
+        assert out[0] == messages[0], "earlier turns are untouched"
+        assert messages[-1]["content"] == "Pick one.", "the caller's list is not mutated"
+
+    def test_the_last_user_turn_is_the_one_marked(self):
+        from mpe_lkg.backends.ollama import JSON_ONLY, _json_only
+
+        out = _json_only([{"role": "user", "content": "first"},
+                          {"role": "assistant", "content": "..."},
+                          {"role": "user", "content": "second"}])
+        assert JSON_ONLY not in out[0]["content"]
+        assert JSON_ONLY in out[2]["content"]
+
+    def test_it_is_not_said_twice(self):
+        from mpe_lkg.backends.ollama import JSON_ONLY, _json_only
+
+        once = _json_only([{"role": "user", "content": "Pick one."}])
+        twice = _json_only(once)
+        assert twice[-1]["content"].count(JSON_ONLY) == 1
+
+    def test_a_conversation_with_no_user_turn_still_gets_one(self):
+        from mpe_lkg.backends.ollama import JSON_ONLY, _json_only
+
+        out = _json_only([{"role": "system", "content": "You reason."}])
+        assert out[-1]["role"] == "user"
+        assert out[-1]["content"] == JSON_ONLY
