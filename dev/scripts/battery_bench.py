@@ -110,9 +110,14 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--decompose", type=int, default=8)
     parser.add_argument("--budget", type=float, default=120.0)
+    parser.add_argument("--group", default="", help="only this group")
     args = parser.parse_args()
 
     questions = build(args.seed, args.per_group)
+    if args.group:
+        questions = [q for q in questions if q.group == args.group]
+        if not questions:
+            parser.error(f"no group {args.group!r}")
     print(f"battery: {len(questions)} questions, seed {args.seed}\n")
 
     results = {}

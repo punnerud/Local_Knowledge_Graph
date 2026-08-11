@@ -44,7 +44,12 @@ dependencies = [
 [project.optional-dependencies]
 # Reading embeddings from inside a model. Heavy, and genuinely optional.
 layers = ["torch>=2.1", "transformers>=4.44"]
-dev = ["pytest>=8.0", "playwright>=1.48", "ruff>=0.6"]
+# rdflib is here and not in dependencies on purpose: it validates the RDF this
+# package WRITES, and nothing at runtime needs a parser. It earned its place
+# immediately -- the first Turtle emitted `lkg:run/abc123`, which is not a legal
+# prefixed name, and a '#' namespace made @base resolution silently drop a path
+# segment so the two formats described different subjects. Both looked fine by eye.
+dev = ["pytest>=8.0", "playwright>=1.48", "ruff>=0.6", "rdflib>=7.0"]
 
 [project.urls]
 Homepage = "https://github.com/punnerud/Local_Knowledge_Graph"

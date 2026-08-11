@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Iterator
 
-from .arithmetic import as_text, correction, evaluate
+from .arithmetic import as_text, convert, correction, evaluate
 from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
@@ -62,6 +62,11 @@ SYSTEM_PROMPT = (
     "SO. DO NOT JUST SAY YOU ARE RE-EXAMINING. USE AT LEAST 3 METHODS TO DERIVE THE ANSWER. "
     "USE BEST PRACTICES. Keep the content of each step under "
     f"{MAX_STEP_CHARS} characters. "
+    "If a step needs a unit conversion, put the WHOLE conversion in a 'convert' field in "
+    "one line, including the quantity from the question: \"23 weeks to seconds\", NOT "
+    "\"weeks to days\". Any number of intermediate units is handled for you in one exact "
+    "answer. Never split a conversion into steps and never multiply conversion factors "
+    "together yourself -- that is the single most common way this goes wrong. "
     "If a step relies on a calculation, ALSO put that calculation in a 'calc' field as a "
     "bare arithmetic expression with no words and no equals sign, for example "
     "\"(17/100)*250\" or \"14*24*60\". It is evaluated exactly and the result is given "
@@ -213,7 +218,8 @@ def _redirect(novelty, step_texts: list[str]) -> str:
 
 
 def _synthesise(
-    chat: ChatBackend, question: str, thread: list[str], settled: list[str] | None = None
+    chat: ChatBackend, question: str, thread: list[str],
+    settled: list[str] | None = None, converted: list[str] | None = None,
 ) -> str:
     """One call that turns the thread into an answer. Empty string if it fails."""
     if not thread:
@@ -228,10 +234,18 @@ def _synthesise(
         sums = "\n\nThese have been calculated exactly and are correct:\n" + "\n".join(
             f"  {s}" for s in unique
         ) + "\nUse these figures. Do not recompute them."
+    # Conversions get their own heading and an instruction to prefer them. The
+    # measured failure was not a wrong conversion -- "161 day = 13910400 second"
+    # was computed exactly -- but an answer of 10080 written beside it.
+    units_block = ""
+    if converted:
+        units_block = "\n\nThese conversions were done exactly:\n" + "\n".join(
+            f"  {c}" for c in converted
+        ) + "\nIf one of them answers the question directly, give that number."
     try:
         raw = "".join(chat.stream(
             [{"role": "user", "content": ANSWER_PROMPT.format(
-                question=question, thread=numbered) + sums}],
+                question=question, thread=numbered) + sums + units_block}],
             300,
         ))
     except BackendError:
@@ -295,6 +309,8 @@ def reason(
     # in a fortnight" -- exactly right, for seconds in a week. So each sum keeps the
     # index and title of its step, and only those on the strongest path are shown.
     settled: list[tuple[int, str, str]] = []
+    converted: list[str] = []
+    conversions = 0
     arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
@@ -371,6 +387,32 @@ def reason(
                 content = "The model returned an empty step."
             title = str(step_json.get("title", "")).strip()
             next_action = str(step_json.get("next_action", "continue")).strip()
+
+            # Named before computed. The factor comes from a graph of exact
+            # ratios rather than from the model's memory, which is where every
+            # measured unit failure came from.
+            asked = str(step_json.get("convert", "")).strip()
+            if check_arithmetic and asked:
+                done = convert(asked)
+                if done is not None:
+                    text, exact = done
+                    conversions += 1
+                    # Kept apart from the sums, and NOT filtered to the spine.
+                    # A sum off the strongest path is usually a dead end the model
+                    # wandered into; a conversion cannot be wrong -- an unknown unit
+                    # or a cross-dimension request refuses rather than answering --
+                    # so every one of them is a fact about the question worth having.
+                    if text not in converted:
+                        converted.append(text)
+                    if as_text(exact) not in content.replace(",", ""):
+                        content = f"{content} ({text})"
+                        step_json["content"] = content
+                    yield {
+                        "type": "convert",
+                        "step": step_number,
+                        "request": asked,
+                        "result": text,
+                    }
 
             calc = str(step_json.get("calc", "")).strip()
             if check_arithmetic and calc:
@@ -510,7 +552,7 @@ def reason(
             # showing none, so nothing is shown.
             thread_sums = [f"{title}: {sum_}" for i, title, sum_ in settled if i in on_spine]
             synthesised = _synthesise(
-                chat, prompt, [step_texts[i] for i in spine], thread_sums
+                chat, prompt, [step_texts[i] for i in spine], thread_sums, converted
             )
             total_thinking_time += time.time() - started
             if synthesised:
@@ -547,6 +589,7 @@ def reason(
             "edge_spread": edge_weight_spread(serialized),
             "sums_checked": sums_checked,
             "sums_corrected": sums_corrected,
+            "conversions": conversions,
             "novelty_retries": retries_spent,
             "novelty_retries_that_helped": retries_that_helped,
             "embedding": embedder.describe(),

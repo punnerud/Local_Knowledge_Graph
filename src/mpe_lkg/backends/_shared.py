@@ -38,9 +38,28 @@ STEP_SCHEMA = {
             "description": "The arithmetic this step relies on, as a bare expression "
                            "like (17/100)*250. Empty string if the step has no calculation.",
         },
+        # Same idea as calc, one level up. An exact evaluator settles what an
+        # expression comes to; it cannot tell whether the expression MEANT
+        # anything. Measured: on unit questions the model scored 0 of 4 with exact
+        # arithmetic available, writing 604800/161 (seconds-in-a-week over DAYS)
+        # and (8*7)*7 (days multiplied by 7 a second time). Every expression was
+        # evaluated flawlessly on the way to a wrong answer.
+        #
+        # So it is not asked to compute the conversion. It is asked to NAME it,
+        # and the factor comes from a graph of exact ratios instead of from the
+        # model's memory.
+        "convert": {
+            "type": "string",
+            "description": "The WHOLE unit conversion this step needs, in one line, "
+                           "including the quantity from the question: '23 weeks to "
+                           "seconds', not 'weeks to days'. Multi-hop conversions are "
+                           "done for you in a single answer, exactly. Never break one "
+                           "into steps and never multiply factors yourself. Empty "
+                           "string if the step needs no conversion.",
+        },
         "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
     },
-    "required": ["title", "content", "calc", "next_action"],
+    "required": ["title", "content", "calc", "convert", "next_action"],
 }
 
 

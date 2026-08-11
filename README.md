@@ -20,7 +20,45 @@ relies on is handed over as an expression and evaluated exactly, in fractions, b
 one part of a run the model did not decide, and you can check `20-13.5 = 6.5` at a glance in a
 way you cannot check a paragraph of reasoning.
 
+The graph draws in two colours, because it holds two kinds of claim. **Blue** links steps by
+how similar their embeddings are — an association, with no truth value, and the thing that
+makes indirect knowledge visible. **Green** is what an exact evaluator settled: a sum, or a
+conversion between two units, derived from exact ratios. A reader should never have to guess
+which is which.
+
 Everything runs on your machine. Nothing is uploaded anywhere.
+
+## Headless, and as RDF
+
+A run can be started without a browser, polled, and taken as RDF — the graph as text, for
+anything that would rather query it than look at it.
+
+```bash
+ID=$(curl -sX POST localhost:5100/jobs -H 'content-type: application/json' \
+       -d '{"query":"How many seconds are there in 23 weeks?"}' | jq -r .id)
+
+curl -s localhost:5100/jobs/$ID              # {"state":"running","steps":3,...}
+curl -s localhost:5100/jobs/$ID/stream       # N-Triples, live, one triple per line
+curl -s localhost:5100/jobs/$ID/rdf          # Turtle, once it has finished
+curl -sX DELETE localhost:5100/jobs/$ID      # stop it
+```
+
+Two formats for two purposes. **N-Triples** streams: each line is a complete document, so a
+consumer can parse what has arrived without waiting for the end. **Turtle** is prefixed and
+readable, and needs the whole document, so it is what a finished run serialises to.
+
+The `lkg:basis` predicate carries the same distinction as the colours, so a consumer can take
+only the part it can rely on:
+
+```turtle
+<run/a1b2/link/Step1-Step2>  lkg:similarity "0.8371"^^xsd:decimal ;
+                             lkg:basis      lkg:Embedding .     # measured association
+
+<run/a1b2/conversion/1>      lkg:statement  "23 week = 13910400 second" ;
+                             lkg:from       <unit/week> ;
+                             lkg:to         <unit/second> ;
+                             lkg:basis      lkg:Exact .         # derived, reproducible
+```
 
 ## Run it
 

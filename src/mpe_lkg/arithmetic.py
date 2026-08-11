@@ -138,6 +138,62 @@ def as_text(value: Fraction) -> str:
     """A value a reader recognises: 42.5 rather than 85/2, 20160 rather than 20160/1."""
     if value.denominator == 1:
         return str(value.numerator)
-    rounded = round(float(value), 4)
-    return f"{rounded:g}"
+    # %g alone was wrong here: it defaults to six significant digits, so the exact
+    # 1609.344 metres in a mile printed as 1609.34 and quietly threw away a digit
+    # the whole point of this module was to keep. Twelve significant digits, then
+    # trailing zeros stripped.
+    text = f"{round(float(value), 6):.12g}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
+
+
+# "23 weeks to seconds", "1 mile in metres", "convert 5 kg into grams".
+CONVERSION = re.compile(
+    # The value is OPTIONAL, and that was not a guess: asked for a conversion the
+    # model wrote "weeks to seconds", with no number at all, and a regex demanding
+    # one matched nothing. Bare units are answered with the factor for one -- which
+    # is the thing it was getting wrong anyway, having built it by hand as (7*24)*23.
+    r"(?:(?P<value>-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?)\s*)?"
+    r"(?P<source>[A-Za-z_]+)\s*"
+    # "1 kg OF FEATHERS to grams" -- the substance is read past and dropped, since
+    # it is not a dimension and cannot affect the factor.
+    r"(?:\s+of\s+[A-Za-z_ ]+?)?\s*"
+    r"(?:->|→|to|in|into|as)\s+"
+    r"(?P<target>[A-Za-z_]+)",
+    re.IGNORECASE,
+)
+
+
+def convert(request: str):
+    """Do a named unit conversion exactly, or return None.
+
+    The counterpart to ``evaluate``, and needed for the same reason one level up:
+    an exact evaluator settles what an expression comes to, and cannot tell
+    whether the expression meant anything. Measured on unit questions, the model
+    scored 0 of 4 WITH exact arithmetic available -- it wrote 604800/161, which is
+    seconds-in-a-week divided by a count of days, and mpeqs returned exactly the
+    wrong number it asked for.
+
+    So the factor is not the model's to remember. It comes from a graph of exact
+    ratios, where a conversion is a path and its value is the product along it.
+
+    Returns ``(text, value)`` -- the human-readable statement and the exact
+    Fraction -- or None if there is nothing here to do or the units are unknown.
+    """
+    match = CONVERSION.search(_normalise(str(request or "")))
+    if not match:
+        return None
+    try:
+        from mpeqs import units
+    except ImportError:
+        return None
+    raw = (match.group("value") or "1").replace(" ", "")
+    try:
+        value = units.convert(Fraction(raw), match.group("source"), match.group("target"))
+        source = units.canonical(match.group("source"))
+        target = units.canonical(match.group("target"))
+    except Exception:
+        # An unknown unit or a cross-dimension request is a refusal, not a guess.
+        # Saying nothing is the safe failure, exactly as it is for a wrong sum.
+        return None
+    return f"{raw} {source} = {as_text(value)} {target}", value
