@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mpe-lkg"
-version = "0.5.0"
+version = "0.6.0"
 description = "Local Knowledge Graph: a local LLM reasons step by step, and the steps become a graph."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,7 +38,11 @@ dependencies = [
     # It was an optional extra first: the code degrades to a no-op without it,
     # which meant the feature silently did not exist for most users -- and CI
     # went green on tests that could not run.
-    "mpeqs>=0.1.0",
+    # 0.3.0, not 0.1.0: the unit graph arrived in 0.3.0, and arithmetic.convert
+    # degrades to None on ImportError rather than crashing -- so an older mpeqs
+    # would leave the conversions silently missing instead of failing loudly,
+    # which is the worst way for a dependency floor to be wrong.
+    "mpeqs>=0.3.0",
 ]
 
 [project.optional-dependencies]
