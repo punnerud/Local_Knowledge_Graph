@@ -57,9 +57,23 @@ STEP_SCHEMA = {
                            "into steps and never multiply factors yourself. Empty "
                            "string if the step needs no conversion.",
         },
+        # What the result IS. Without this the value is unusable at the end:
+        # "(86400*378) = 32659200" does not say that it is seconds in 54 weeks, so
+        # nothing can match it to the question. Measured, offering unlabelled
+        # expressions as candidate answers scored 0 of 5 -- the model rejected all
+        # of them -- while the same values labelled scored 9 of 12.
+        "calc_of": {
+            "type": "string",
+            "description": "What the calc RESULT is, in the question's own words, "
+                           "specific enough to tell it apart from every other value "
+                           "in this problem. Write 'parts made by Machine B', NOT "
+                           "'total parts' -- a label that fits two different values "
+                           "cannot identify either. Write 'seconds in 54 weeks', NOT "
+                           "'seconds'. Empty string if the step has no calculation.",
+        },
         "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
     },
-    "required": ["title", "content", "calc", "convert", "next_action"],
+    "required": ["title", "content", "calc", "calc_of", "convert", "next_action"],
 }
 
 

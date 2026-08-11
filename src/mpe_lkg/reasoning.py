@@ -13,12 +13,13 @@ import os
 import re
 import time
 from collections.abc import Iterator
+from fractions import Fraction
 
-from .arithmetic import as_text, convert, correction, evaluate
+from .arithmetic import as_text, convert, correction, evaluate, readable
 from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
-from .novelty import assess
+from .novelty import assess, similarity
 
 MAX_STEPS = 20
 # Wall clock, not a step count. A hard step cap stops a run that is still getting
@@ -217,6 +218,184 @@ def _redirect(novelty, step_texts: list[str]) -> str:
     )
 
 
+# How close a fact's label must sit to the question before its value may be
+# offered as the answer. THE GATE IS NOT THE MODEL'S JOB, and that is measured:
+# asked "what is the capital of France?" with a settled number in front of it, the
+# model chose the number 3 times out of 3 -- and 3 out of 3 again when the options
+# carried their labels. A forced choice among numbers produces a number. So the
+# code decides whether a numeric answer is even on the table.
+#
+# 0.30 sits well below the labelled-fact questions and well above the prose ones;
+# it is checked by test rather than asserted here.
+FACT_RELEVANCE = 0.30
+
+# The most letters to offer. Measured candidate counts are median 3, max 8 per
+# run, so this rarely bites -- it is a bound, not a policy.
+MAX_CHOICES = 8
+
+SELECT_PROMPT = (
+    "Question: {question}\n\n"
+    "Each of these was computed exactly:\n{facts}\n{relations}\n"
+    "Which letter is the answer to the question as asked? "
+    "Answer NONE if no letter is."
+)
+
+
+def _relations(values: list[Fraction], keys: list[str]) -> str:
+    """How the values compare, settled here rather than by the model.
+
+    Comparing 3801755 against 3169068 is exactly the kind of thing a small model
+    gets wrong, and it is a Fraction comparison. Handing over the answer removes
+    the question.
+    """
+    lines = []
+    for i in range(len(values)):
+        for j in range(i + 1, len(values)):
+            sign = ">" if values[i] > values[j] else "<" if values[i] < values[j] else "="
+            lines.append(f"  {keys[i]} {sign} {keys[j]}")
+    return "\nHow they compare:\n" + "\n".join(lines) + "\n" if lines else ""
+
+
+def describes(label: str) -> bool:
+    """Is this a description of a value, or an expression wearing one as a hat?
+
+    Measured: asked what a result IS, the model wrote "604800/7" and "Weeks to
+    seconds via minutes". The first is the sum again, the second is a method. A
+    label that does not name a quantity cannot identify it, and offering one as a
+    candidate answer is offering a wrong answer with a confident face.
+
+    The conversions never fail this, because their labels are built here rather
+    than written by a model -- which is why the two questions that came out right
+    were both answered from a conversion.
+    """
+    words = [w for w in re.findall(r"[A-Za-z]+", label) if len(w) > 1]
+    if len(words) < 2:
+        return False
+    # More operator than word is an expression, whatever it is called.
+    return len(re.findall(r"[+\-*/=^()]", label)) <= 1
+
+
+def _ambiguous(facts: list[tuple[str, Fraction]]) -> set[str]:
+    """Labels that fit more than one value, and so identify neither.
+
+    Measured: a run labelled both machines' totals "total_parts", and the choice
+    between them was then a coin toss the relations could not settle -- the model
+    picked the smaller when asked for the larger. A label that does not
+    discriminate is worse than no label, because it looks like one.
+    """
+    seen: dict[str, set] = {}
+    for label, value in facts:
+        seen.setdefault(label.strip().lower(), set()).add(value)
+    return {label for label, values in seen.items() if len(values) > 1}
+
+
+def _compress(facts: list[tuple[str, Fraction]]) -> list[tuple[str, Fraction]]:
+    """Fewer, better-labelled facts. Eight steps of working beat three facts, badly.
+
+    Duplicates go, and so does any fact whose label is a prefix of another's -- a
+    step computing "days in 54 weeks" on the way to "seconds in 54 weeks" is
+    working, not an answer, and offering it is offering a wrong answer.
+    """
+    seen: dict[tuple[str, Fraction], None] = {}
+    for label, value in facts:
+        if label:
+            seen.setdefault((label.strip().lower(), value), None)
+    unique = [(label, value) for label, value in
+              {(lab, val): (lab, val) for lab, val in
+               [(f[0].strip(), f[1]) for f in facts if f[0]]}.values()]
+
+    def subsumed(label: str) -> bool:
+        low = label.lower()
+        return any(low != other.lower() and low in other.lower() for other, _ in unique)
+
+    vague = _ambiguous(unique)
+    usable = [(label, value) for label, value in unique
+              if describes(label) and label.strip().lower() not in vague]
+    kept = [(label, value) for label, value in usable if not subsumed(label)]
+    return (kept or usable)[:MAX_CHOICES]
+
+
+# Numbers small enough to be ordinary prose rather than a computed result: a count
+# of steps, a YEAR, "one of three". Four digits was the first guess and it flagged
+# 1989, so five it is -- which still catches 10080, the wrong answer this exists
+# to see.
+GUARD_MIN_DIGITS = 5
+
+
+def unsupported_numbers(answer: str, facts: list[tuple[str, Fraction]]) -> list[str]:
+    """Long numbers in the answer that no tool actually computed.
+
+    A measurement, not a rewrite. The literature calls this failure Result-Ignore
+    -- the final answer states something other than what the tool returned -- and
+    detects it exactly this way. Reporting the count turns a silent wrong answer
+    into a number we can watch, which is worth more than a silent correction.
+
+    Only the selection path is immune by construction; this watches the other one.
+    """
+    known = {str(value.numerator) for _, value in facts if value.denominator == 1}
+    known |= {as_text(value).replace(".", "") for _, value in facts}
+    found = []
+    pattern = rf"\d[\d,]{{{GUARD_MIN_DIGITS - 1},}}"
+    for literal in re.findall(pattern, answer):
+        bare = literal.replace(",", "")
+        if bare not in known:
+            found.append(bare)
+    return found
+
+
+def _select(chat: ChatBackend, embedder: EmbeddingBackend, question: str,
+            facts: list[tuple[str, Fraction]]):
+    """Pick the fact that answers the question, and return ITS value.
+
+    The model answers with a letter. It never writes the number, never carries it,
+    and never compares two of them -- all three are things it was measured to get
+    wrong on fifteen-digit values, and none of them are things it needs to do.
+    The value comes back from the record, so what it chose and what is reported
+    cannot drift apart.
+
+    Returns None when nothing here answers the question, which leaves the ordinary
+    synthesis to run.
+    """
+    facts = _compress(facts)
+    if not facts:
+        return None
+
+    # The gate. See FACT_RELEVANCE: an enum forces a choice, so the code has to
+    # decide whether a numeric answer is on the table at all.
+    try:
+        vectors = embedder.embed([question] + [label for label, _ in facts])
+    except BackendError:
+        return None
+    if max(similarity(vectors[0], v) for v in vectors[1:]) < FACT_RELEVANCE:
+        return None
+
+    keys = [chr(65 + i) for i in range(len(facts))]
+    # Labels only. Showing the values was tried and measured worse (1/6 against
+    # 4/6), which fits the design rather than contradicting it: the point of
+    # answering by letter is that the model never handles the number, and putting
+    # the numbers back in front of it gives it something to be wrong about.
+    listed = "\n".join(f"  {k} = {label}"
+                       for k, (label, _) in zip(keys, facts, strict=True))
+    schema = {
+        "type": "object",
+        "properties": {"answer": {"type": "string", "enum": [*keys, "NONE"]}},
+        "required": ["answer"],
+    }
+    prompt = SELECT_PROMPT.format(
+        question=question, facts=listed,
+        relations=_relations([value for _, value in facts], keys))
+    try:
+        raw = "".join(chat.stream([{"role": "user", "content": prompt}], 40, schema=schema))
+    except BackendError:
+        return None
+
+    chosen = str(extract_json(raw).get("answer", "")).strip()
+    if chosen not in keys:
+        return None
+    label, value = facts[keys.index(chosen)]
+    return label, value
+
+
 def _synthesise(
     chat: ChatBackend, question: str, thread: list[str],
     settled: list[str] | None = None, converted: list[str] | None = None,
@@ -310,6 +489,11 @@ def reason(
     # index and title of its step, and only those on the strongest path are shown.
     settled: list[tuple[int, str, str]] = []
     converted: list[str] = []
+    # Facts that can be OFFERED as the answer: a label saying what the value is,
+    # and the exact value itself. Kept apart from the display strings because the
+    # answer comes from the Fraction, never from text parsed back out of a model.
+    labelled: list[tuple[str, Fraction]] = []
+    unsupported: list[str] = []
     conversions = 0
     arithmetic_retries = 0
     total_thinking_time = 0.0
@@ -395,7 +579,8 @@ def reason(
             if check_arithmetic and asked:
                 done = convert(asked)
                 if done is not None:
-                    text, exact = done
+                    text, exact, label = done
+                    labelled.append((label, exact))
                     conversions += 1
                     # Kept apart from the sums, and NOT filtered to the spine.
                     # A sum off the strongest path is usually a dead end the model
@@ -421,7 +606,13 @@ def reason(
                     sums_checked += 1
                     stated = as_text(exact)
                     settled.append((len(step_texts), title or f"Step {step_number}",
-                                    f"{calc} = {stated}"))
+                                    f"{calc} = {readable(exact)}"))
+                    # Only a LABELLED value may be offered as the answer later.
+                    # "(86400*378) = 32659200" does not say what it is, and offering
+                    # unlabelled expressions as candidates scored 0 of 5.
+                    described = str(step_json.get("calc_of", "")).strip()
+                    if described:
+                        labelled.append((described, exact))
                     # The exact value is appended rather than substituted: the
                     # model's own wording stays, and the number it can be held to
                     # sits beside it. The synthesis step reads this.
@@ -551,12 +742,25 @@ def reason(
             # spine happens to hold none, showing all of them is no better than
             # showing none, so nothing is shown.
             thread_sums = [f"{title}: {sum_}" for i, title, sum_ in settled if i in on_spine]
-            synthesised = _synthesise(
-                chat, prompt, [step_texts[i] for i in spine], thread_sums, converted
-            )
+
+            # Selection first. The model picks a LETTER and the value comes back
+            # from the record, so what it chose and what is reported cannot drift
+            # apart -- which is the whole failure this replaces. The literature
+            # calls it Result-Ignore, and it is measured at 30% on an 8B Llama.
+            chosen = _select(chat, embedder, prompt, labelled) if check_arithmetic else None
+            if chosen is not None:
+                label, value = chosen
+                selected = as_text(value)
+                final_answer = f"{label.capitalize()}: {selected}."
+                yield {"type": "selected", "label": label, "value": selected}
+            else:
+                synthesised = _synthesise(
+                    chat, prompt, [step_texts[i] for i in spine], thread_sums, converted
+                )
+                if synthesised:
+                    final_answer = synthesised
+                    unsupported = unsupported_numbers(synthesised, labelled)
             total_thinking_time += time.time() - started
-            if synthesised:
-                final_answer = synthesised
 
         if final_answer is None:
             final_answer = step_texts[-1] if step_texts else "No final answer."
@@ -590,6 +794,9 @@ def reason(
             "sums_checked": sums_checked,
             "sums_corrected": sums_corrected,
             "conversions": conversions,
+            # Long numbers in the answer that no tool computed. Zero on the
+            # selection path by construction; this is the synthesis path's score.
+            "unsupported_numbers": unsupported,
             "novelty_retries": retries_spent,
             "novelty_retries_that_helped": retries_that_helped,
             "embedding": embedder.describe(),
