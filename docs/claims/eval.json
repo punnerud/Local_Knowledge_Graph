@@ -1,6 +1,6 @@
 {
   "provenance": "measured",
-  "measured_at": "2026-08-11T07:43:01+00:00",
+  "measured_at": "2026-08-11T08:09:07+00:00",
   "chat_model": "llama3.2:3b",
   "embedding_model": "nomic-embed-text:latest",
   "repeats": 3,
@@ -2429,6 +2429,184 @@
           "stdev": 3.4
         },
         "repeats_caught": 5,
+        "sums_fixed": 0,
+        "errors": 0
+      }
+    }
+  },
+  "angle_floor": {
+    "overall": {
+      "n": 84,
+      "graded": 75,
+      "correct": 56,
+      "correct_rate": 0.7467,
+      "steps": {
+        "mean": 8.56,
+        "stdev": 0.99
+      },
+      "prompt_tokens": {
+        "mean": 7128.87,
+        "stdev": 2030.48
+      },
+      "completion_tokens": {
+        "mean": 640.67,
+        "stdev": 222.25
+      },
+      "calls": {
+        "mean": 10.4,
+        "stdev": 1.15
+      },
+      "seconds": {
+        "mean": 15.27,
+        "stdev": 4.9
+      },
+      "repeats_caught": 26,
+      "sums_fixed": 21,
+      "errors": 0
+    },
+    "per_group": {
+      "simple": {
+        "n": 18,
+        "graded": 18,
+        "correct": 18,
+        "correct_rate": 1.0,
+        "steps": {
+          "mean": 8.22,
+          "stdev": 1.4
+        },
+        "prompt_tokens": {
+          "mean": 6542.06,
+          "stdev": 1750.49
+        },
+        "completion_tokens": {
+          "mean": 604.72,
+          "stdev": 226.04
+        },
+        "calls": {
+          "mean": 10.17,
+          "stdev": 0.92
+        },
+        "seconds": {
+          "mean": 15.01,
+          "stdev": 5.4
+        },
+        "repeats_caught": 4,
+        "sums_fixed": 5,
+        "errors": 0
+      },
+      "multi_step": {
+        "n": 18,
+        "graded": 18,
+        "correct": 14,
+        "correct_rate": 0.7778,
+        "steps": {
+          "mean": 8.72,
+          "stdev": 0.46
+        },
+        "prompt_tokens": {
+          "mean": 7292.94,
+          "stdev": 1566.17
+        },
+        "completion_tokens": {
+          "mean": 628.11,
+          "stdev": 165.69
+        },
+        "calls": {
+          "mean": 10.56,
+          "stdev": 1.15
+        },
+        "seconds": {
+          "mean": 15.33,
+          "stdev": 3.84
+        },
+        "repeats_caught": 3,
+        "sums_fixed": 7,
+        "errors": 0
+      },
+      "malformed": {
+        "n": 15,
+        "graded": 15,
+        "correct": 12,
+        "correct_rate": 0.8,
+        "steps": {
+          "mean": 8.53,
+          "stdev": 0.52
+        },
+        "prompt_tokens": {
+          "mean": 6827.6,
+          "stdev": 1656.7
+        },
+        "completion_tokens": {
+          "mean": 668.53,
+          "stdev": 249.23
+        },
+        "calls": {
+          "mean": 10.27,
+          "stdev": 0.8
+        },
+        "seconds": {
+          "mean": 15.25,
+          "stdev": 4.96
+        },
+        "repeats_caught": 1,
+        "sums_fixed": 3,
+        "errors": 0
+      },
+      "hard": {
+        "n": 24,
+        "graded": 24,
+        "correct": 12,
+        "correct_rate": 0.5,
+        "steps": {
+          "mean": 8.58,
+          "stdev": 1.25
+        },
+        "prompt_tokens": {
+          "mean": 8089.54,
+          "stdev": 2677.96
+        },
+        "completion_tokens": {
+          "mean": 709.75,
+          "stdev": 250.4
+        },
+        "calls": {
+          "mean": 10.71,
+          "stdev": 1.6
+        },
+        "seconds": {
+          "mean": 16.72,
+          "stdev": 5.5
+        },
+        "repeats_caught": 18,
+        "sums_fixed": 6,
+        "errors": 0
+      },
+      "ambiguous": {
+        "n": 9,
+        "graded": 0,
+        "correct": 0,
+        "correct_rate": null,
+        "steps": {
+          "mean": 8.89,
+          "stdev": 0.33
+        },
+        "prompt_tokens": {
+          "mean": 5914.67,
+          "stdev": 443.63
+        },
+        "completion_tokens": {
+          "mean": 507.0,
+          "stdev": 132.16
+        },
+        "calls": {
+          "mean": 10.0,
+          "stdev": 0.0
+        },
+        "seconds": {
+          "mean": 11.85,
+          "stdev": 2.47
+        },
+        "repeats_caught": 0,
         "sums_fixed": 0,
         "errors": 0
       }

@@ -288,6 +288,53 @@ FILE_CHECKS = [
         0.0,
         "no run in the eval errored",
     ),
+    # --- Working through the planned angles, rather than abandoning them ---
+    (
+        EVAL,
+        lambda d: float(d["angle_floor"]["overall"]["steps"]["mean"]),
+        8.56,
+        1.0,
+        "a run works through its angles: about 8.5 steps, up from 6.7",
+    ),
+    (
+        EVAL,
+        # Every group, not just the mean. A mean of 8.5 is also what you get from
+        # simple questions stopping at 3 and hard ones running to 14.
+        lambda d: min(g["steps"]["mean"] for g in d["angle_floor"]["per_group"].values()),
+        8.22,
+        0.9,
+        "no group falls below eight steps",
+    ),
+    (
+        EVAL,
+        # The requirement was eight steps at no cost to accuracy. This pins the
+        # "no cost" half: the arms are within a point and a half of each other.
+        lambda d: abs(d["angle_floor"]["overall"]["correct_rate"]
+                      - d["calc_on"]["overall"]["correct_rate"]) * 100,
+        1.3,
+        6.0,
+        "the extra steps cost no accuracy",
+    ),
+    (
+        EVAL,
+        lambda d: (d["angle_floor"]["overall"]["prompt_tokens"]["mean"]
+                   / d["calc_on"]["overall"]["prompt_tokens"]["mean"]),
+        1.34,
+        0.25,
+        "and cost about a third more prompt tokens",
+    ),
+    (
+        EVAL,
+        # THE NOISE FLOOR, pinned because it governs how every other comparison
+        # here should be read. Two runs of an identical configuration -- same
+        # questions, same model, same code, differing in nothing -- scored 39% and
+        # 67%. Any claim resting on a gap smaller than that is folklore.
+        lambda d: abs(d["calc_control"]["overall"]["correct_rate"]
+                      - d["calc_control_b"]["overall"]["correct_rate"]) * 100,
+        27.8,
+        6.0,
+        "identical configurations differ by ~28 points at n=18: read every gap against this",
+    ),
 ]
 
 
