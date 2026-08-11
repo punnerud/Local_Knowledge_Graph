@@ -64,14 +64,15 @@ SYSTEM_PROMPT = (
     "USE BEST PRACTICES. Keep the content of each step under "
     f"{MAX_STEP_CHARS} characters. "
     "If a step needs a unit conversion, put the WHOLE conversion in a 'convert' field in "
-    "one line, including the quantity from the question: \"23 weeks to seconds\", NOT "
-    "\"weeks to days\". Any number of intermediate units is handled for you in one exact "
-    "answer. Never split a conversion into steps and never multiply conversion factors "
-    "together yourself -- that is the single most common way this goes wrong. "
+    "one line, as '<quantity> <unit> to <unit>', using the quantity from THIS question. "
+    "Any number of intermediate units is handled for you in one exact answer. Never split "
+    "a conversion into steps and never multiply conversion factors together yourself -- "
+    "that is the single most common way this goes wrong. Leave it empty if this question "
+    "involves no units. "
     "If a step relies on a calculation, ALSO put that calculation in a 'calc' field as a "
-    "bare arithmetic expression with no words and no equals sign, for example "
-    "\"(17/100)*250\" or \"14*24*60\". It is evaluated exactly and the result is given "
-    "back to you, so you never have to do the sum yourself."
+    "bare arithmetic expression with no words and no equals sign, built ONLY from numbers "
+    "that appear in this question. It is evaluated exactly and the result is given back to "
+    "you, so you never have to do the sum yourself. Leave it empty when there is no sum."
 )
 
 # Kept so the result stays reproducible rather than becoming folklore. Pass it as

@@ -36,7 +36,8 @@ STEP_SCHEMA = {
         "calc": {
             "type": "string",
             "description": "The arithmetic this step relies on, as a bare expression "
-                           "like (17/100)*250. Empty string if the step has no calculation.",
+                           "using the numbers from THIS question and no others. "
+                           "Empty string if the step has no calculation.",
         },
         # Same idea as calc, one level up. An exact evaluator settles what an
         # expression comes to; it cannot tell whether the expression MEANT
@@ -64,12 +65,11 @@ STEP_SCHEMA = {
         # of them -- while the same values labelled scored 9 of 12.
         "calc_of": {
             "type": "string",
-            "description": "What the calc RESULT is, in the question's own words, "
-                           "specific enough to tell it apart from every other value "
-                           "in this problem. Write 'parts made by Machine B', NOT "
-                           "'total parts' -- a label that fits two different values "
-                           "cannot identify either. Write 'seconds in 54 weeks', NOT "
-                           "'seconds'. Empty string if the step has no calculation.",
+            "description": "What the calc RESULT is, named in the question's own "
+                           "words and specific enough to tell it apart from every "
+                           "other value in this problem. A label that would fit two "
+                           "different values identifies neither. Use only wording "
+                           "drawn from this question. Empty string if no calculation.",
         },
         "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
     },

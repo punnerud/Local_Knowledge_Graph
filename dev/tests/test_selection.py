@@ -199,3 +199,31 @@ class TestTheResultIgnoreDetector:
     def test_short_numbers_are_left_alone(self):
         # Step counts, years and small quantities are ordinary prose.
         assert unsupported_numbers("It took 3 steps over 2 tries in 1989.", [SECONDS]) == []
+
+
+class TestNoExampleLeaks:
+    """A concrete example in a prompt comes back as an answer.
+
+    Measured: the schema said 'like (17/100)*250' and a run answered a
+    fifteen-digit multiplication with "Calculator_verification: 42.5". Another
+    answered it with "Second in 23 week: 13910400", the example from the
+    conversion field. The model was not reasoning badly -- it was copying the
+    only concrete numbers it had been shown.
+    """
+
+    def test_no_prompt_shows_the_model_a_number_it_could_copy(self):
+        import re
+
+        from mpe_lkg.backends import STEP_SCHEMA
+        from mpe_lkg.reasoning import ANGLE_STEP_PROMPT, ANSWER_PROMPT, SYSTEM_PROMPT
+
+        texts = [SYSTEM_PROMPT, ANSWER_PROMPT, ANGLE_STEP_PROMPT]
+        texts += [str(field.get("description", ""))
+                  for field in STEP_SCHEMA["properties"].values()]
+        for text in texts:
+            # A number bound to a noun about the OUTPUT ("700 characters") is an
+            # instruction and cannot be mistaken for the question's data. A bare
+            # one is something to copy, and that is what leaked.
+            bare = re.findall(r"\d[\d.,/*+()-]{2,}(?!\s*(?:characters|steps|sentences))",
+                              text)
+            assert not bare, f"copyable numbers {bare} in: {text[:90]}"
