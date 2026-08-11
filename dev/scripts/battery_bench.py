@@ -142,8 +142,12 @@ def main() -> int:
     print(f"  gate off: {off['correct']}/{off['n']} ({off['correct_rate']*100:.0f}%)")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # The arm goes in the filename. It did not, so a --select run overwrote the
+    # baseline it was meant to be compared against -- the comparison would have
+    # been against itself, and looked like a null result.
     tag = args.model.split(":")[0].replace("/", "-") if args.model else "default"
-    out = OUT_DIR / f"battery_{args.seed}_{tag}.json"
+    arm = "_select" if args.select else ""
+    out = OUT_DIR / f"battery_{args.seed}_{tag}{arm}.json"
     out.write_text(json.dumps({"seed": args.seed, **results}, indent=1))
     print(f"\nwrote {out}")
     return 0
