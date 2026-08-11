@@ -14,6 +14,8 @@ import re
 import time
 from collections.abc import Iterator
 
+from .arithmetic import correction
+from .arithmetic import errors as arithmetic_errors
 from .backends import STEP_SCHEMA, BackendError, ChatBackend, EmbeddingBackend
 from .graph import build_graph, edge_weight_spread, serialize_graph_data, strongest_path
 from .novelty import assess
@@ -37,6 +39,9 @@ MAX_STEP_CHARS = 700
 # counter, so a model that kept answering too long, or kept trying to finish early,
 # held the loop forever while the browser sat waiting on a stream that never spoke.
 MAX_RETRIES_PER_STEP = 3
+# A wrong sum is worth redoing, but a model that keeps writing the same wrong sum
+# will do so however often it is told. Bounded, like every other retry here.
+MAX_ARITHMETIC_RETRIES = 3
 
 # MEASURED, AND THE SHORT VERSION LOST. This 233-token prompt is resent on every
 # call and reads like shouting, so it looked like an obvious saving. Three separate
@@ -242,6 +247,7 @@ def reason(
     max_novelty_retries: int = 3,
     system_prompt: str = "",
     decompose: int = 0,
+    check_arithmetic: bool = True,
 ) -> Iterator[dict]:
     """Run the reasoning loop, yielding one event dict at a time."""
     messages = [
@@ -257,6 +263,9 @@ def reason(
     dry_streak = 0
     retries_spent = 0
     retries_that_helped = 0
+    sums_checked = 0
+    sums_corrected = 0
+    arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
     step_events = 0
@@ -332,6 +341,23 @@ def reason(
                 content = "The model returned an empty step."
             title = str(step_json.get("title", "")).strip()
             next_action = str(step_json.get("next_action", "continue")).strip()
+
+            if check_arithmetic:
+                wrong = arithmetic_errors(content)
+                sums_checked += 1
+                if wrong and arithmetic_retries < MAX_ARITHMETIC_RETRIES:
+                    # A sum the record can evaluate exactly is not a matter of
+                    # opinion. Hand back the corrected figure and let the model
+                    # redo the step around it.
+                    arithmetic_retries += 1
+                    sums_corrected += 1
+                    messages.append({"role": "user", "content": correction(wrong)})
+                    yield {
+                        "type": "arithmetic",
+                        "step": step_number,
+                        "errors": [c.describe() for c in wrong],
+                    }
+                    continue
 
             content_vec = embedder.embed([content])[0]
             title_vec = embedder.embed([title or content[:60]])[0]
@@ -453,6 +479,8 @@ def reason(
             "total_time": total_thinking_time,
             "steps": step_events,
             "edge_spread": edge_weight_spread(serialized),
+            "sums_checked": sums_checked,
+            "sums_corrected": sums_corrected,
             "novelty_retries": retries_spent,
             "novelty_retries_that_helped": retries_that_helped,
             "embedding": embedder.describe(),

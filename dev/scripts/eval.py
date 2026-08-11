@@ -153,19 +153,22 @@ def grade(answer: str, spec: dict) -> bool | None:
 
 
 def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detect=True,
-             system_prompt="", min_steps=0, decompose=0) -> dict:
+             system_prompt="", min_steps=0, decompose=0, check_arith=True) -> dict:
     chat.reset_usage()
     started = time.time()
     steps, answer, error = [], "", None
 
-    repeats = 0
+    repeats, sums_fixed = 0, 0
     for event in reason(spec["q"], chat=chat, embedder=embedder, synthesise=synthesise,
                         time_budget=budget, detect_repeats=detect, system_prompt=system_prompt,
-                        min_steps=min_steps, decompose=decompose):
+                        min_steps=min_steps, decompose=decompose,
+                        check_arithmetic=check_arith):
         if event["type"] == "step":
             steps.append(event["content"])
         elif event["type"] == "repeat":
             repeats += 1
+        elif event["type"] == "arithmetic":
+            sums_fixed += 1
         elif event["type"] == "final":
             answer = event["content"]
         elif event["type"] == "error":
@@ -184,6 +187,7 @@ def run_once(spec: dict, chat, embedder, *, synthesise=True, budget=120.0, detec
         "calls": usage["calls"],
         "seconds": round(time.time() - started, 2),
         "repeats_caught": repeats,
+        "sums_fixed": sums_fixed,
         "error": error,
     }
 
@@ -211,6 +215,7 @@ def summarise(results: list[dict]) -> dict:
         "calls": stat("calls"),
         "seconds": stat("seconds"),
         "repeats_caught": sum(r.get("repeats_caught", 0) for r in results),
+        "sums_fixed": sum(r.get("sums_fixed", 0) for r in results),
         "errors": sum(1 for r in results if r["error"]),
     }
 
@@ -225,6 +230,8 @@ def main() -> int:
     parser.add_argument("--no-synthesis", action="store_true",
                         help="take the last step as the answer, as the baseline did")
     parser.add_argument("--budget", type=float, default=120.0, help="seconds per run")
+    parser.add_argument("--no-arithmetic-check", action="store_true",
+                        help="do not verify the model's sums with mpeqs")
     parser.add_argument("--decompose", type=int, default=0,
                         help="plan N angles first, then take one step per angle")
     parser.add_argument("--min-steps", type=int, default=0,
@@ -253,7 +260,8 @@ def main() -> int:
             result = run_once(spec, chat, embedder, synthesise=not args.no_synthesis,
                               budget=args.budget, detect=not args.no_repeat_detection,
                               system_prompt=SHORT_SYSTEM_PROMPT if args.short_prompt else "",
-                              min_steps=args.min_steps, decompose=args.decompose)
+                              min_steps=args.min_steps, decompose=args.decompose,
+                              check_arith=not args.no_arithmetic_check)
             results.append(result)
             marks.append("-" if result["correct"] is None else ("." if result["correct"] else "x"))
         print(f"  [{n:>2}/{len(specs)}] {''.join(marks)}  {spec['group']:<11} {spec['q'][:52]}", flush=True)

@@ -1,6 +1,6 @@
 {
   "provenance": "measured",
-  "measured_at": "2026-08-11T06:02:41+00:00",
+  "measured_at": "2026-08-11T06:51:38+00:00",
   "chat_model": "llama3.2:3b",
   "embedding_model": "nomic-embed-text:latest",
   "repeats": 2,
@@ -1648,6 +1648,362 @@
           "stdev": 2.89
         },
         "repeats_caught": 0,
+        "errors": 0
+      }
+    }
+  },
+  "arith_off": {
+    "overall": {
+      "n": 56,
+      "graded": 50,
+      "correct": 37,
+      "correct_rate": 0.74,
+      "steps": {
+        "mean": 6.2,
+        "stdev": 2.28
+      },
+      "prompt_tokens": {
+        "mean": 4136.57,
+        "stdev": 1981.72
+      },
+      "completion_tokens": {
+        "mean": 461.93,
+        "stdev": 179.01
+      },
+      "calls": {
+        "mean": 8.14,
+        "stdev": 2.13
+      },
+      "seconds": {
+        "mean": 10.58,
+        "stdev": 3.83
+      },
+      "repeats_caught": 12,
+      "sums_fixed": 0,
+      "errors": 0
+    },
+    "per_group": {
+      "simple": {
+        "n": 12,
+        "graded": 12,
+        "correct": 12,
+        "correct_rate": 1.0,
+        "steps": {
+          "mean": 6.42,
+          "stdev": 2.02
+        },
+        "prompt_tokens": {
+          "mean": 3905.75,
+          "stdev": 1424.3
+        },
+        "completion_tokens": {
+          "mean": 452.25,
+          "stdev": 136.59
+        },
+        "calls": {
+          "mean": 8.17,
+          "stdev": 1.7
+        },
+        "seconds": {
+          "mean": 10.31,
+          "stdev": 3.05
+        },
+        "repeats_caught": 0,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "multi_step": {
+        "n": 12,
+        "graded": 12,
+        "correct": 10,
+        "correct_rate": 0.8333,
+        "steps": {
+          "mean": 6.08,
+          "stdev": 2.5
+        },
+        "prompt_tokens": {
+          "mean": 4612.33,
+          "stdev": 2364.87
+        },
+        "completion_tokens": {
+          "mean": 458.0,
+          "stdev": 201.96
+        },
+        "calls": {
+          "mean": 8.5,
+          "stdev": 2.61
+        },
+        "seconds": {
+          "mean": 10.66,
+          "stdev": 4.41
+        },
+        "repeats_caught": 8,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "malformed": {
+        "n": 10,
+        "graded": 10,
+        "correct": 8,
+        "correct_rate": 0.8,
+        "steps": {
+          "mean": 5.9,
+          "stdev": 2.18
+        },
+        "prompt_tokens": {
+          "mean": 3865.8,
+          "stdev": 2062.18
+        },
+        "completion_tokens": {
+          "mean": 458.6,
+          "stdev": 189.24
+        },
+        "calls": {
+          "mean": 7.9,
+          "stdev": 2.18
+        },
+        "seconds": {
+          "mean": 10.29,
+          "stdev": 4.08
+        },
+        "repeats_caught": 1,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "hard": {
+        "n": 16,
+        "graded": 16,
+        "correct": 7,
+        "correct_rate": 0.4375,
+        "steps": {
+          "mean": 6.06,
+          "stdev": 2.52
+        },
+        "prompt_tokens": {
+          "mean": 4197.5,
+          "stdev": 2292.85
+        },
+        "completion_tokens": {
+          "mean": 489.69,
+          "stdev": 221.85
+        },
+        "calls": {
+          "mean": 7.94,
+          "stdev": 2.29
+        },
+        "seconds": {
+          "mean": 11.22,
+          "stdev": 4.57
+        },
+        "repeats_caught": 3,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "ambiguous": {
+        "n": 6,
+        "graded": 0,
+        "correct": 0,
+        "correct_rate": null,
+        "steps": {
+          "mean": 6.83,
+          "stdev": 2.4
+        },
+        "prompt_tokens": {
+          "mean": 3935.5,
+          "stdev": 1458.92
+        },
+        "completion_tokens": {
+          "mean": 420.67,
+          "stdev": 69.19
+        },
+        "calls": {
+          "mean": 8.33,
+          "stdev": 1.86
+        },
+        "seconds": {
+          "mean": 9.72,
+          "stdev": 1.6
+        },
+        "repeats_caught": 0,
+        "sums_fixed": 0,
+        "errors": 0
+      }
+    }
+  },
+  "arith_on": {
+    "overall": {
+      "n": 56,
+      "graded": 50,
+      "correct": 39,
+      "correct_rate": 0.78,
+      "steps": {
+        "mean": 5.77,
+        "stdev": 2.1
+      },
+      "prompt_tokens": {
+        "mean": 3716.25,
+        "stdev": 1831.64
+      },
+      "completion_tokens": {
+        "mean": 433.27,
+        "stdev": 176.55
+      },
+      "calls": {
+        "mean": 7.73,
+        "stdev": 1.91
+      },
+      "seconds": {
+        "mean": 9.78,
+        "stdev": 3.68
+      },
+      "repeats_caught": 9,
+      "sums_fixed": 1,
+      "errors": 0
+    },
+    "per_group": {
+      "simple": {
+        "n": 12,
+        "graded": 12,
+        "correct": 12,
+        "correct_rate": 1.0,
+        "steps": {
+          "mean": 6.0,
+          "stdev": 2.41
+        },
+        "prompt_tokens": {
+          "mean": 3492.67,
+          "stdev": 1646.89
+        },
+        "completion_tokens": {
+          "mean": 375.67,
+          "stdev": 131.22
+        },
+        "calls": {
+          "mean": 7.75,
+          "stdev": 2.09
+        },
+        "seconds": {
+          "mean": 8.63,
+          "stdev": 2.89
+        },
+        "repeats_caught": 0,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "multi_step": {
+        "n": 12,
+        "graded": 12,
+        "correct": 8,
+        "correct_rate": 0.6667,
+        "steps": {
+          "mean": 4.83,
+          "stdev": 1.95
+        },
+        "prompt_tokens": {
+          "mean": 2933.58,
+          "stdev": 1435.71
+        },
+        "completion_tokens": {
+          "mean": 339.83,
+          "stdev": 114.99
+        },
+        "calls": {
+          "mean": 6.92,
+          "stdev": 1.78
+        },
+        "seconds": {
+          "mean": 7.81,
+          "stdev": 2.46
+        },
+        "repeats_caught": 1,
+        "sums_fixed": 1,
+        "errors": 0
+      },
+      "malformed": {
+        "n": 10,
+        "graded": 10,
+        "correct": 8,
+        "correct_rate": 0.8,
+        "steps": {
+          "mean": 5.5,
+          "stdev": 1.27
+        },
+        "prompt_tokens": {
+          "mean": 3352.5,
+          "stdev": 1109.1
+        },
+        "completion_tokens": {
+          "mean": 443.7,
+          "stdev": 100.27
+        },
+        "calls": {
+          "mean": 7.5,
+          "stdev": 1.27
+        },
+        "seconds": {
+          "mean": 9.78,
+          "stdev": 2.1
+        },
+        "repeats_caught": 0,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "hard": {
+        "n": 16,
+        "graded": 16,
+        "correct": 11,
+        "correct_rate": 0.6875,
+        "steps": {
+          "mean": 6.12,
+          "stdev": 2.16
+        },
+        "prompt_tokens": {
+          "mean": 4625.12,
+          "stdev": 2430.67
+        },
+        "completion_tokens": {
+          "mean": 523.19,
+          "stdev": 246.58
+        },
+        "calls": {
+          "mean": 8.31,
+          "stdev": 2.12
+        },
+        "seconds": {
+          "mean": 11.71,
+          "stdev": 5.08
+        },
+        "repeats_caught": 8,
+        "sums_fixed": 0,
+        "errors": 0
+      },
+      "ambiguous": {
+        "n": 6,
+        "graded": 0,
+        "correct": 0,
+        "correct_rate": null,
+        "steps": {
+          "mean": 6.67,
+          "stdev": 2.58
+        },
+        "prompt_tokens": {
+          "mean": 3911.33,
+          "stdev": 1385.5
+        },
+        "completion_tokens": {
+          "mean": 478.17,
+          "stdev": 134.11
+        },
+        "calls": {
+          "mean": 8.17,
+          "stdev": 2.04
+        },
+        "seconds": {
+          "mean": 10.85,
+          "stdev": 2.55
+        },
+        "repeats_caught": 0,
+        "sums_fixed": 0,
         "errors": 0
       }
     }

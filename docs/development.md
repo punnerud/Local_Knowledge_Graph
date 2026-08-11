@@ -97,3 +97,38 @@ rediscovered:
 
 A number that is only measured once is not measured. A two-run arm read 97.1 % where four runs
 read 91.2 %, which is why the shipped figure is the four-run one.
+
+
+## How much does a run vary, run to run?
+
+Two arms in this file turned out to be the same configuration measured twice —
+`decompose8` was run before the arithmetic gate existed, and `arith_off` runs the same
+settings with the gate explicitly disabled. They scored **84 % and 74 %**.
+
+That is the noise floor: **about ten points at two runs per question**, on 25 gradeable
+questions against a 3B model at temperature 0.2. It was not designed as a replication and is
+more useful for having been an accident.
+
+Read every comparison here against it. The large results survive — 55 % to 91 % is five times
+the noise — but a four-point difference between two arms is not a result, and this document
+does not treat one as such.
+
+## Checking the model's arithmetic: correct, and nearly inert
+
+`mpeqs` evaluates a sum exactly and refuses rather than guessing, so a step claiming
+`14 * 24 * 60 = 10080` can be contradicted without asking the model to check itself. That is
+wired in, tested, and it works when it fires.
+
+It hardly ever fires. Measured: **one correction across 50 runs**, and a scan of 153 saved
+reasoning steps found **11 checkable sums and none of them wrong**.
+
+The reason is worth recording, because it points at what would work. This model writes its
+arithmetic as prose — "a fortnight is 14 days, and each day has 1440 minutes, so 20160" —
+rather than as `14 * 1440 = 20160`. An extractor keyed on an explicit expression sees almost
+nothing, and the errors that did occur were stated in the *answer* as a bare number with no
+working to check.
+
+So the gate stays, described as what it is: correct when it fires, and not a measurable
+contributor on this model's output style. Getting real value out of an exact solver means
+asking the model for a **spec** it can evaluate — `{"solver": "arith", "answer": "(17/100)*250"}` —
+rather than scraping prose for something that looks like a sum. That is a different experiment.
