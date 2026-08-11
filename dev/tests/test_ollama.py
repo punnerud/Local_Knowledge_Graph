@@ -113,7 +113,7 @@ class TestModelDiscovery:
         names = installed()
         if not names:
             pytest.skip("Ollama is not reachable")
-        monkeypatch.setattr(backends, "DEFAULT_CHAT_MODEL", sorted(names)[0])
+        monkeypatch.setattr(backends.ollama, "DEFAULT_CHAT_MODEL", sorted(names)[0])
         assert backends.health()["ok"] is True
 
 

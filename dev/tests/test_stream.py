@@ -124,17 +124,21 @@ class TestIssueTwoNeverTerminates:
         assert steps and all(e["truncated"] for e in steps)
         assert all(len(e["content"]) <= 704 for e in steps)
 
-    def test_model_that_always_wants_to_stop_still_terminates(self, flask_client):
+    def test_a_model_that_is_done_is_allowed_to_be_done(self, flask_client):
+        """The floor that forced five steps is gone, and that was the point of it.
+
+        A reported transcript reached its answer at step 4 and was pushed on with
+        "you have given 4 of 5 steps", producing three more steps that added
+        nothing. Length is decided by whether anything new is still arriving.
+        """
         finish = step("Done", "Answering immediately.", "final_answer")
         client, _ = flask_client([finish], repeat_last=True)
 
         events = read_events(client.get("/query?query=q"))
 
         assert events[-1]["type"] == "done_stream"
-        # It is nudged up to the minimum before being allowed to finish. The last
-        # node is the final answer, so it is not also announced as a step.
         final = [e for e in events if e["type"] == "final"][0]
-        assert len(final["graph"]["nodes"]) >= 5
+        assert len(final["graph"]["nodes"]) <= 3, "a one-step answer must not be padded to five"
 
     def test_step_count_is_bounded(self, flask_client):
         never_finish = step("Go on", "Still reasoning about the problem.")
@@ -177,6 +181,7 @@ class TestHealthRoute:
         from mpe_lkg import backends
 
         monkeypatch.setattr(backends, "list_models", lambda *a, **k: [])
+        monkeypatch.setattr(backends.ollama, "list_models", lambda *a, **k: [])
         client, _ = flask_client(normal_script())
         payload = client.get("/health").get_json()
 
@@ -186,10 +191,9 @@ class TestHealthRoute:
     def test_health_names_the_missing_model(self, flask_client, monkeypatch):
         from mpe_lkg import backends
 
-        monkeypatch.setattr(
-            backends, "list_models",
-            lambda *a, **k: [{"name": "all-minilm:latest", "is_embedding": True, "capabilities": []}],
-        )
+        fake = [{"name": "all-minilm:latest", "is_embedding": True, "capabilities": []}]
+        monkeypatch.setattr(backends, "list_models", lambda *a, **k: fake)
+        monkeypatch.setattr(backends.ollama, "list_models", lambda *a, **k: fake)
         client, _ = flask_client(normal_script())
         payload = client.get("/health").get_json()
 
@@ -216,3 +220,137 @@ class TestEmbeddingDimensions:
         for line in raw.splitlines():
             if line.startswith("data: "):
                 json.loads(line[6:])
+
+
+class TestAnswerSynthesis:
+    """The answer is written from the graph, not lifted from whichever step was last.
+
+    Measured before this existed: the answer to "What is the capital of France?" did
+    not contain the word Paris. It was a footnote about regional capitals, because a
+    prompt that rewards exploring alternatives naturally ends on a caveat.
+    """
+
+    def test_the_answer_comes_from_the_synthesis_call(self, flask_client):
+        client, chat = flask_client(normal_script())
+        events = read_events(client.get("/query?query=q"))
+
+        final = [e for e in events if e["type"] == "final"][0]
+        assert final["content"] == "The capital of France is Paris."
+        assert "Weighing the evidence" not in final["content"], "that was the last step"
+
+    def test_the_synthesis_call_is_given_the_question_and_a_thread(self, flask_client):
+        client, chat = flask_client(normal_script())
+        read_events(client.get("/query?query=What+is+the+capital+of+France"))
+
+        last_call = chat.calls[-1][0]["content"]
+        assert "What is the capital of France" in last_call
+        assert "1." in last_call, "the thread is handed over as a numbered list"
+
+    def test_a_failed_synthesis_falls_back_to_the_last_step(self, flask_client):
+        """Losing the whole run because one extra call failed would be a bad trade."""
+        script = normal_script()[:-1]          # no answer for the synthesis call
+        client, _ = flask_client(script)
+        events = read_events(client.get("/query?query=q"))
+
+        final = [e for e in events if e["type"] == "final"][0]
+        assert final["content"] == "Weighing the evidence gathered so far."
+        assert not [e for e in events if e["type"] == "error"]
+
+    def test_the_fallback_does_not_duplicate_the_node(self, flask_client):
+        client, _ = flask_client(normal_script()[:-1])
+        events = read_events(client.get("/query?query=q"))
+        final = [e for e in events if e["type"] == "final"][0]
+
+        labels = [n["label"] for n in final["graph"]["nodes"]]
+        assert sum(1 for x in labels if x.startswith("Final Answer")) == 1
+        assert all(e["value"] < 0.999 for e in final["graph"]["edges"])
+
+    def test_synthesis_can_be_turned_off(self, flask_client, embedder):
+        """The A/B arm the eval measures against."""
+        import mpe_lkg.app as app_module
+        from mpe_lkg.backends import ScriptedChat
+
+        chat = ScriptedChat(normal_script()[:-1])
+        app_module.app.config["BACKENDS_FACTORY"] = lambda: (chat, embedder)
+        events = read_events(app_module.app.test_client().get("/query?query=q"))
+        final = [e for e in events if e["type"] == "final"][0]
+        assert final["content"] == "Weighing the evidence gathered so far."
+
+
+class TestTimeBudget:
+    def test_a_run_stops_when_its_budget_is_spent(self, flask_client):
+        """A step cap stops a run that is still getting somewhere; a clock does not."""
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        never_finish = step("Go on", "Still reasoning about the problem.")
+        events = list(reason(
+            "q",
+            chat=ScriptedChat([never_finish], repeat_last=True, delay=0.05),
+            embedder=DeterministicEmbedding(32),
+            time_budget=0.2,
+            synthesise=False,
+        ))
+        steps = [e for e in events if e["type"] == "step"]
+        assert 0 < len(steps) < 20, "the budget, not the step cap, ended this"
+        assert [e for e in events if e["type"] == "final"], "it still answers with what it has"
+
+
+class TestNoveltyDrivenLength:
+    """Length is decided by whether anything new is arriving, not by a constant."""
+
+    def test_a_model_stuck_on_one_move_is_stopped(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+
+        events = read_events(client.get("/query?query=q"))
+        repeats = [e for e in events if e["type"] == "repeat"]
+
+        assert repeats, "the second identical move must be refused"
+        assert len([e for e in events if e["type"] == "step"]) <= 2
+        assert events[-1]["type"] == "done_stream"
+
+    def test_a_refused_step_says_what_it_repeated(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+        events = read_events(client.get("/query?query=q"))
+
+        first = [e for e in events if e["type"] == "repeat"][0]
+        assert "step 1" in first["reason"]
+        assert first["attempt"] == 1
+
+    def test_the_model_is_told_what_it_already_covered(self, flask_client):
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, chat = flask_client([repeat], repeat_last=True)
+        read_events(client.get("/query?query=q"))
+
+        redirect = [m for call in chat.calls for m in call if "already covered" in m.get("content", "")]
+        assert redirect, "a coverage map, not just a prohibition"
+        assert "somewhere none of those go" in redirect[0]["content"]
+
+    def test_distinct_steps_are_never_refused(self, flask_client):
+        """The guard that matters: a healthy run must pass through untouched."""
+        client, _ = flask_client(normal_script())
+        events = read_events(client.get("/query?query=q"))
+
+        assert not [e for e in events if e["type"] == "repeat"]
+        assert len([e for e in events if e["type"] == "step"]) == 5
+
+    def test_how_often_a_retry_helped_is_reported(self, flask_client):
+        """Whether asking again works is a claim, so it is counted rather than assumed."""
+        repeat = step("Alternative Answer Exploration", "Considering alternatives once more.")
+        client, _ = flask_client([repeat], repeat_last=True)
+        done = [e for e in read_events(client.get("/query?query=q")) if e["type"] == "done"][0]
+
+        assert done["novelty_retries"] >= 1
+        assert done["novelty_retries_that_helped"] == 0, "this model never varies, by construction"
+
+    def test_detection_can_be_turned_off(self, flask_client):
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        repeat = step("Same Move", "Considering alternatives once more.")
+        events = list(reason("q", chat=ScriptedChat([repeat], repeat_last=True),
+                             embedder=DeterministicEmbedding(32),
+                             detect_repeats=False, synthesise=False))
+        assert not [e for e in events if e["type"] == "repeat"]

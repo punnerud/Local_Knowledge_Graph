@@ -1,0 +1,77 @@
+"""Configuration, protocols and the helpers every backend needs."""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Iterable, Iterator
+from typing import Protocol
+
+import numpy as np
+
+DEFAULT_BASE_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+# Empty means "use whatever chat model Ollama actually has". Setting LKG_CHAT_MODEL
+# is an override, not a default: hardcoding a name here is what told a user with a
+# perfectly good model installed to go and pull one they did not need.
+DEFAULT_CHAT_MODEL = os.environ.get("LKG_CHAT_MODEL", "")
+# Empty means "look at what Ollama actually has and pick something sensible".
+DEFAULT_EMBED_MODEL = os.environ.get("LKG_EMBED_MODEL", "")
+REQUEST_TIMEOUT = float(os.environ.get("LKG_TIMEOUT", "120"))
+
+# The reasoning loop asks for exactly these three keys. Handing Ollama the schema
+# means the model cannot answer with prose that fails to parse, which is where the
+# "Step 5: Parsing Error" nodes in the project's own screenshot came from.
+STEP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "content": {"type": "string"},
+        "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
+    },
+    "required": ["title", "content", "next_action"],
+}
+
+
+class BackendError(RuntimeError):
+    """A model backend could not answer, with a message worth showing a user."""
+
+    def __init__(self, message: str, *, hint: str = "") -> None:
+        super().__init__(message)
+        self.hint = hint
+
+    def user_message(self) -> str:
+        return f"{self}\n{self.hint}".strip()
+
+
+class EmbeddingBackend(Protocol):
+    def embed(self, texts: Iterable[str]) -> np.ndarray:
+        """Return an ``(n, dim)`` float32 array of L2-normalised row vectors."""
+
+    @property
+    def dim(self) -> int: ...
+
+    def describe(self) -> dict: ...
+
+
+class ChatBackend(Protocol):
+    def stream(self, messages: list[dict], max_tokens: int, *, schema: dict | None = None) -> Iterator[str]:
+        """Yield response text as it arrives."""
+
+    def describe(self) -> dict: ...
+
+
+def _l2_normalise(matrix: np.ndarray) -> np.ndarray:
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    # A zero vector stays zero rather than becoming NaN; cosine against it is 0.
+    np.divide(matrix, norms, out=matrix, where=norms > 0)
+    return matrix
+
+
+def _clean_for_embedding(text: str) -> str:
+    """Collapse whitespace so one record can never become two.
+
+    Every text-in/vector-out endpoint that is line-oriented treats a newline as a
+    record separator. A single embedded newline shifts every subsequent vector onto
+    the wrong document, and the result looks like a plausible graph rather than an
+    error. Collapsing here costs nothing and removes the whole class of bug.
+    """
+    return " ".join(text.split()) or " "

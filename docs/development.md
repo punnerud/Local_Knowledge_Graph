@@ -53,3 +53,47 @@ insensitive by comparison: exactly the same three steps fire anywhere from 0.95 
 `docs/claims/loops_transcripts.json` holds every raw step, and `make loops --reanalyse`
 recomputes from it, so a threshold can be revisited without spending model time and anyone can
 check these numbers instead of taking them.
+
+## Does the thinking improve the answer?
+
+`make eval` runs 20 questions with known answers and reports whether the answer survived, how
+many steps it took, and how many prompt tokens Ollama actually tokenised. Every answer is
+saved, so the grading can be checked and old arms regraded without re-running the model.
+
+Measured against `llama3.2:3b`, gradeable groups only:
+
+| arm | correct | steps | prompt tokens | seconds |
+|---|---|---|---|---|
+| what this project shipped | 54.9 % | 6.2 | 2704 | 7.5 |
+| **now, validated over 80 runs** | **91.2 %** | **3.9** | **1649** | **5.2** |
+
+Two changes account for it, and neither is the one that was planned.
+
+**The answer is written from the graph.** It used to be the text of whatever step came last,
+so the answer to "What is the capital of France?" did not contain the word Paris — it was a
+footnote about regional capitals, because a prompt that rewards exploring alternatives ends on
+a caveat. Now the strongest path through the graph is extracted and one call turns that thread
+into an answer. This is the graph earning its place rather than being drawn and ignored.
+
+**The step floor was removed.** `min_steps = 5` forced every question to five steps whether or
+not it had five steps' worth of thinking in it. Removing it halved both the step count and the
+token cost with no loss of accuracy — and it also removed most of the repetition the loop
+detector was built for, because those repeats lived in steps 5 to 8. We had been detecting a
+problem we were causing.
+
+Three things were tried and **measured worse**, and are recorded here so they are not
+rediscovered:
+
+- **A shorter system prompt.** The 233-token original reads like shouting and is resent every
+  call. Three terser rewrites all lost, by 9 to 15 points. A control that put a step floor back
+  showed it is the wording and not the amount of reasoning: at 3.7 steps against the long
+  prompt's 3.5, the short version still lost. What it buys is arithmetic.
+- **The repeat detector, as a contributor.** It has never fired in an eval run. It stays as
+  insurance for the pathological case, tested against a model that repeats one move forever.
+- **Grading ambiguous questions by substring.** "A hot dog is a sandwich." is a good answer and
+  matches no keyword list worth writing, while a rambling hedge scores well by accident. Those
+  questions still run; they are reported separately rather than averaged into a headline they
+  would move for the wrong reason.
+
+A number that is only measured once is not measured. A two-run arm read 97.1 % where four runs
+read 91.2 %, which is why the shipped figure is the four-run one.

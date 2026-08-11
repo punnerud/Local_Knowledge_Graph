@@ -24,7 +24,7 @@ import math
 import pathlib
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT))
 
@@ -36,6 +36,7 @@ CLAIMS = "docs/claims/edge_spread.json"
 SEARCH = "docs/claims/search_bench.json"
 SWEEP = "docs/claims/layer_sweep.json"
 LOOPS = "docs/claims/loops.json"
+EVAL = "docs/claims/eval.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -238,6 +239,54 @@ FILE_CHECKS = [
         0.0,
         0.15,
         "the step graph does not percolate at k<=4, so similarity stays meaningful",
+    ),
+    # The eval arms. The tolerance on the headline is wide on purpose: a two-run
+    # arm read 97.1 % and four runs read 91.2 %, so anything tighter would be
+    # pinning the sampling noise of a stochastic model rather than its behaviour.
+    (
+        EVAL,
+        lambda d: 1.0 if d.get("provenance") == "measured" else 0.0,
+        1.0,
+        0.001,
+        "the eval is measured, not inherited",
+    ),
+    (
+        EVAL,
+        lambda d: float(d["validated"]["overall"]["correct_rate"]),
+        0.91,
+        0.10,
+        "the shipped configuration answers about 91 percent of gradeable questions",
+    ),
+    (
+        EVAL,
+        # The comparison is what matters, and it is far outside the noise: this is
+        # the same 20 questions, the same model, the same grader.
+        lambda d: 1.0 if (d["validated"]["overall"]["correct_rate"]
+                          > d["baseline"]["overall"]["correct_rate"] + 0.25) else 0.0,
+        1.0,
+        0.001,
+        "it beats what this project shipped by more than 25 points",
+    ),
+    (
+        EVAL,
+        lambda d: float(d["validated"]["overall"]["prompt_tokens"]["mean"]),
+        1649.0,
+        800.0,
+        "a run costs about 1650 prompt tokens, down from 2700",
+    ),
+    (
+        EVAL,
+        lambda d: float(d["validated"]["overall"]["steps"]["mean"]),
+        3.9,
+        1.5,
+        "a run takes about four steps, down from six",
+    ),
+    (
+        EVAL,
+        lambda d: float(d["validated"]["overall"]["errors"]),
+        0.0,
+        0.0,
+        "no run in the eval errored",
     ),
 ]
 

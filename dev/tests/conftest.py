@@ -5,8 +5,11 @@ import sys
 import pytest
 
 # Works whether or not the package is installed, and identically on Windows.
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))
+# The measurement scripts are importable too, so a test can reuse their maths
+# instead of restating it.
+sys.path.insert(0, str(ROOT / "dev" / "scripts"))
 sys.path.insert(0, str(ROOT))
 
 from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat  # noqa: E402
@@ -17,12 +20,18 @@ def step(title: str, content: str, next_action: str = "continue") -> str:
 
 
 def normal_script(n_steps: int = 6) -> list[str]:
-    """A well-behaved model: distinct steps, then a final answer."""
+    """A well-behaved model: distinct steps, a decision to stop, then an answer.
+
+    The last entry is the synthesis call, which is plain text rather than a step:
+    the answer is written from the graph's strongest thread, not lifted from
+    whichever step happened to come last.
+    """
     script = [
         step(f"Title {i}", f"Reasoning about part {i} of the problem, considering alternatives.")
         for i in range(1, n_steps)
     ]
-    script.append(step("Conclusion", "The capital of France is Paris.", "final_answer"))
+    script.append(step("Conclusion", "Weighing the evidence gathered so far.", "final_answer"))
+    script.append("The capital of France is Paris.")
     return script
 
 

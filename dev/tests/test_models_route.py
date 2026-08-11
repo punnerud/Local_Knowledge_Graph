@@ -23,7 +23,11 @@ def installed(monkeypatch):
 
     def apply(*names_and_kinds):
         models = fake_models(*names_and_kinds)
+        # Both names: app.py reaches it through the package facade, while health()
+        # and pick_chat_model() resolve it inside the ollama module they live in.
+        # Patching one and not the other gives a half-faked world.
         monkeypatch.setattr(backends, "list_models", lambda *a, **k: models)
+        monkeypatch.setattr(backends.ollama, "list_models", lambda *a, **k: models)
         return models
 
     return apply

@@ -226,8 +226,9 @@ class TestRealModel:
 
     def test_depth_separates_topics_better_than_the_first_layer(self, probe):
         """The whole point of the feature, as an assertion."""
+        from layer_sweep import separation
+
         from mpe_lkg.layers import MultiLayerProbe
-        from scripts.layer_sweep import separation
 
         texts = ["The capital of France is Paris.", "Paris is the French capital.",
                  "Diesel engines need oil changes.", "Servicing a diesel engine."]
