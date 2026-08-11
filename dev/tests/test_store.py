@@ -164,12 +164,15 @@ def test_the_version_is_declared_once_and_agrees_with_itself():
     against the version their console printed would have been reporting it against
     the wrong release.
     """
+    import re
     from pathlib import Path
-
-    import tomllib
 
     import mpe_lkg
 
+    # Not tomllib: it arrived in 3.11 and this package supports 3.10. CI caught
+    # that within a minute of the test being written, which is the test doing its
+    # job on itself. A regex over one line is the smaller tool for one field.
     root = Path(__file__).resolve().parents[2]
-    declared = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    text = (root / "pyproject.toml").read_text()
+    declared = re.search(r'^version = "([^"]+)"', text, re.MULTILINE).group(1)
     assert mpe_lkg.__version__ == declared
