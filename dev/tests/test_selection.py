@@ -46,30 +46,34 @@ class Chooser:
 
 
 class Embedder:
-    """Similarity by shared words, with no hashing at all.
+    """Similarity by shared words, at a FIXED width.
 
-    Two earlier versions of this double were wrong in ways that failed the gate
-    tests while the code under test was fine: `hash()` is randomised per process,
-    and a 512-bucket sha1 still collided, scoring "why is the sky blue" at 0.35
-    against "seconds in 54 weeks". A test double that invents similarity tests
-    nothing, so the vocabulary is built from the batch itself and collisions are
-    impossible.
+    Three earlier versions were wrong in ways that failed tests while the code was
+    fine. `hash()` is randomised per process. A 512-bucket sha1 still collided,
+    scoring "why is the sky blue" at 0.35 against "seconds in 54 weeks". And a
+    vocabulary built per call gave a different width on every call, which broke
+    the moment anything embedded twice inside one run.
+
+    Fixed width, deterministic buckets, wide enough that collisions are rare.
     """
 
+    WIDTH = 4096
+
     def embed(self, texts):
+        import hashlib
+
         import numpy as np
 
-        def words(text: str) -> set[str]:
-            return {w.strip("?.,!").lower() for w in text.split()
-                    if len(w.strip("?.,!")) > 2}
+        def bucket(word: str) -> int:
+            return int(hashlib.sha1(word.encode()).hexdigest()[:8], 16) % self.WIDTH
 
-        every = sorted({w for text in texts for w in words(text)})
-        index = {word: i for i, word in enumerate(every)}
         vectors = []
         for text in texts:
-            vector = np.zeros(max(len(every), 1), dtype=np.float32)
-            for word in words(text):
-                vector[index[word]] = 1.0
+            words = {w.strip("?.,!").lower() for w in str(text).split()}
+            words = {w for w in words if len(w) > 2}
+            vector = np.zeros(self.WIDTH, dtype=np.float32)
+            for word in words:
+                vector[bucket(word)] = 1.0
             norm = np.linalg.norm(vector)
             vectors.append(vector / norm if norm else vector)
         return np.array(vectors)
@@ -227,3 +231,242 @@ class TestNoExampleLeaks:
             bare = re.findall(r"\d[\d.,/*+()-]{2,}(?!\s*(?:characters|steps|sentences))",
                               text)
             assert not bare, f"copyable numbers {bare} in: {text[:90]}"
+
+
+class TestSubquestions:
+    """Splitting a question into standalone questions, guarded by the graph.
+
+    Neither guard is the model's to apply. It cannot tell it has drifted, because
+    each step looks reasonable from the one before, and it cannot tell it is
+    repeating, because it does not hold the earlier questions. Embeddings hold
+    both, which is the graph earning its place in the control flow rather than
+    only in the picture.
+    """
+
+    def _chat(self, questions):
+        import json as _json
+
+        class Split:
+            def stream(self, messages, max_tokens, schema=None):
+                yield _json.dumps({"questions": questions})
+
+        return Split()
+
+    def test_standalone_questions_come_back(self):
+        from mpe_lkg.reasoning import subquestions
+
+        asked = ["How heavy is the atmosphere?"]
+        out = subquestions(self._chat(["How heavy is the atmosphere in total?"]),
+                           Embedder(), "How heavy is the atmosphere?", 5)
+        assert out and all(q.strip() for q in out)
+        assert asked  # the parent is not silently required
+
+    def test_a_question_that_drifted_is_dropped(self):
+        """A different problem is not a way into this one."""
+        from mpe_lkg.reasoning import subquestions
+
+        chat = self._chat(["What is the average density of air in the atmosphere?",
+                           "Who won the 1966 World Cup final?"])
+        out = subquestions(chat, Embedder(),
+                           "How heavy is the air in the atmosphere?", 5)
+        assert not any("World Cup" in q for q in out)
+
+    def test_a_question_already_asked_is_dropped(self):
+        """The loop this structure can fall into, which at depth looks like progress."""
+        from mpe_lkg.reasoning import subquestions
+
+        parent = "How heavy is the air in the atmosphere?"
+        chat = self._chat([parent, "What is the density of air in the atmosphere?"])
+        out = subquestions(chat, Embedder(), parent, 5, asked=[parent])
+        assert parent not in out
+
+    def test_nothing_usable_is_an_empty_list_rather_than_a_guess(self):
+        from mpe_lkg.reasoning import subquestions
+
+        assert subquestions(self._chat([]), Embedder(), "anything at all?", 5) == []
+
+    def test_the_count_is_respected(self):
+        from mpe_lkg.reasoning import subquestions
+
+        many = [f"What is quantity number {i} of the atmosphere air?" for i in range(12)]
+        assert len(subquestions(self._chat(many), Embedder(),
+                                "What is the atmosphere air made of?", 3)) <= 3
+
+
+class TestExplore:
+    """Each part answered as a run of its own, then assembled.
+
+    The measured difference from walking a plan flat: forty-six leaves in one
+    transcript produced thirteen steps and "negligible and not reliably
+    estimable", because the leaves are too alike and the synthesis cannot put
+    that many fragments together. Forty-six ANSWERS are a different thing -- an
+    answer says what it is, and a fragment does not.
+    """
+
+    def _backends(self, script):
+        """Word-overlap embeddings, not the hash-based double.
+
+        The relevance guard compares a sub-question with its parent, and a hash
+        embedding makes unrelated strings arbitrarily similar or dissimilar -- so
+        it dropped every part and the test measured the guard misfiring rather
+        than the feature.
+        """
+        import json as _json
+
+        class Scripted:
+            def __init__(self):
+                self.calls = 0
+
+            def stream(self, messages, max_tokens, schema=None):
+                self.calls += 1
+                text = messages[-1]["content"]
+                if "would let you answer" in text:
+                    yield _json.dumps({"questions": script})
+                elif schema is not None:
+                    yield _json.dumps({"title": "T", "content": "Worked out.",
+                                       "calc": "", "calc_of": "", "convert": "",
+                                       "next_action": "final_answer"})
+                else:
+                    yield "An answer."
+
+        return Scripted(), Embedder()
+
+    def test_a_question_that_will_not_split_falls_back_to_one_run(self):
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends([])
+        events = list(explore("What is the capital of France?", chat=chat,
+                              embedder=embedder, breadth=4, depth=1))
+        assert any(e["type"] == "final" for e in events)
+        assert not any(e["type"] == "branch" for e in events)
+
+    def test_depth_zero_is_an_ordinary_run(self):
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends(["Something else entirely?"])
+        events = list(explore("q", chat=chat, embedder=embedder, depth=0))
+        assert not any(e["type"] == "branch" for e in events)
+        assert any(e["type"] == "final" for e in events)
+
+    def test_the_parts_are_answered_and_assembled(self):
+        from mpe_lkg.reasoning import explore
+
+        parts = ["How heavy is the water above one square metre of air?",
+                 "How much water is in the air above a square metre?"]
+        chat, embedder = self._backends(parts)
+        events = list(explore("How heavy is the water in the air?", chat=chat,
+                              embedder=embedder, breadth=2, depth=1))
+        branch = next(e for e in events if e["type"] == "branch")
+        assert branch["parts"] == parts
+        # One finding per part, each carrying its own question, and one answer.
+        findings = [e for e in events if e["type"] == "finding" and e["level"] == 0]
+        assert [f["question"] for f in findings] == parts
+        assert all(f["answer"] for f in findings)
+        assert len([e for e in events if e["type"] == "final" and not e.get("level")]) == 1
+
+    def test_a_budget_too_small_to_branch_just_answers(self):
+        """Half a plan is worse than no plan: it reads as an explored question."""
+        from mpe_lkg.reasoning import explore
+
+        chat, embedder = self._backends(["a?", "b?"])
+        events = list(explore("q", chat=chat, embedder=embedder, depth=1, budget=1.0))
+        assert not any(e["type"] == "branch" for e in events)
+        assert any(e["type"] == "final" for e in events)
+
+    def test_sub_runs_are_tagged_with_the_question_they_belong_to(self):
+        from mpe_lkg.reasoning import explore
+
+        parts = ["How heavy is the water in the air above one square metre?",
+                 "How much water sits in the air over a square metre?"]
+        chat, embedder = self._backends(parts)
+        events = list(explore("How heavy is the water in the air?", chat=chat,
+                              embedder=embedder, breadth=2, depth=1))
+        tagged = [e for e in events if e.get("of")]
+        assert tagged, "sub-run events must say which question they came from"
+        assert {e["of"] for e in tagged} <= set(parts)
+
+
+class TestTheVote:
+    """Several independent checks, counted -- so no single one can fell an answer.
+
+    One checker is a call with a veto: a reading that happens to be narrow sends a
+    settled answer round again, and a lenient one waves a real disagreement
+    through. Three readings through three different lenses, and a majority.
+    """
+
+    def _voter(self, verdicts):
+        import json as _json
+
+        class Fake:
+            def __init__(self):
+                self.seen = 0
+                self.prompts = []
+
+            def stream(self, messages, max_tokens, schema=None):
+                self.prompts.append(messages[-1]["content"])
+                agree = verdicts[self.seen % len(verdicts)]
+                self.seen += 1
+                yield _json.dumps({"agree": agree,
+                                   "disagreement": "" if agree else "the total mass"})
+
+        return Fake()
+
+    def test_a_lone_dissenter_does_not_overturn_two(self):
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([True, True, False]), "q", "first", "second")
+        assert (tally["agree"], tally["disagree"]) == (2, 1)
+        assert tally["agreed"] is True
+
+    def test_a_lone_supporter_does_not_carry_it(self):
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([False, False, True]), "q", "first", "second")
+        assert tally["agreed"] is False
+        assert tally["about"] == "the total mass"
+
+    def test_every_voter_is_asked_something_different(self):
+        """Three readings, not one reading three times."""
+        from mpe_lkg.reasoning import LENSES, vote
+
+        chat = self._voter([True])
+        vote(chat, "q", "a", "b", voters=3)
+        assert len(chat.prompts) == 3
+        assert len(set(chat.prompts)) == 3, "the voters saw identical prompts"
+        for lens in LENSES:
+            assert any(lens in p for p in chat.prompts)
+
+    def test_the_tally_is_reported_not_just_the_verdict(self):
+        """2-1 and 3-0 are different things, and hiding which turns one into a fact."""
+        from mpe_lkg.reasoning import vote
+
+        tally = vote(self._voter([True, True, False]), "q", "a", "b")
+        assert len(tally["ballots"]) == 3
+        assert [b["agree"] for b in tally["ballots"]] == [True, True, False]
+        assert all(b["lens"] for b in tally["ballots"])
+
+    def test_a_backend_that_will_not_answer_does_not_pass_it(self):
+        from mpe_lkg.backends import BackendError
+        from mpe_lkg.reasoning import vote
+
+        class Broken:
+            def stream(self, messages, max_tokens, schema=None):
+                raise BackendError("down")
+                yield ""
+
+        tally = vote(Broken(), "q", "a", "b")
+        assert tally["agreed"] is False, "no ballots must not count as agreement"
+
+
+class TestBreadthTapers:
+    def test_breadth_narrows_with_depth_and_stops_at_two(self):
+        """Held flat, five ways four deep is 625 questions, and the fifth at the
+        bottom is never the one that mattered. 5*4*3*2 is 120 and it ends."""
+        import math
+
+        from mpe_lkg.reasoning import breadth_at
+
+        widths = [breadth_at(level, 5) for level in range(4)]
+        assert widths == [5, 4, 3, 2]
+        assert math.prod(widths) == 120
+        assert breadth_at(99, 5) == 2

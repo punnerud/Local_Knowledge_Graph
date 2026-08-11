@@ -392,3 +392,26 @@ class TestGraphToLog:
             run_query(page, server, "How many seconds are there in 23 weeks?")
             labels = {n.get("label") for n in graph_state(page)["nodes"]}
             assert "week" in labels and "second" in labels
+
+    def test_the_vote_is_drawn_with_one_cell_per_check(self, page, tmp_path):
+        """A tally, not a verdict: 2-1 and 3-0 are different things.
+
+        Drawn from the event rather than reached through a real settle run, which
+        takes minutes -- what is under test is that the tally renders, and that a
+        dissent is visible rather than rounded away.
+        """
+        with LiveServer(normal_script(3), tmp_path) as server:
+            run_query(page, server)
+            page.evaluate("""() => showVote({
+                agree: 2, disagree: 1,
+                ballots: [
+                    {lens: 'same value', agree: true, about: ''},
+                    {lens: 'same conclusion', agree: true, about: ''},
+                    {lens: 'same action', agree: false, about: 'the total mass'}
+                ]})""")
+            assert page.locator(".vote-bar").count() == 1
+            assert page.locator(".vote-yes").count() == 2
+            assert page.locator(".vote-no").count() == 1
+            assert "2 agree, 1 disagree" in page.inner_text("#steps")
+            # The dissenting reason is reachable, not thrown away.
+            assert "the total mass" in page.locator(".vote-no").first.get_attribute("title")

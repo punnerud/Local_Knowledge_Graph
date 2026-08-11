@@ -172,3 +172,23 @@ class TestTheRegistry:
         assert job.done.wait(timeout=5)
         assert job.state == "error"
         assert "model fell over" in job.error
+
+
+class TestModes:
+    """reason, explore and settle over the same API.
+
+    A settle run is minutes rather than seconds, so the mode is reported back:
+    a caller that cannot tell them apart will time out on one of them.
+    """
+
+    def test_the_mode_is_recorded_and_returned(self, client):
+        started = client.post("/jobs", json={"query": "q", "mode": "reason"})
+        assert started.get_json()["mode"] == "reason"
+
+    def test_an_unknown_mode_is_refused_with_the_list(self, client):
+        refused = client.post("/jobs", json={"query": "q", "mode": "guess"})
+        assert refused.status_code == 400
+        assert set(refused.get_json()["modes"]) == {"reason", "explore", "settle"}
+
+    def test_the_default_is_a_single_run(self, client):
+        assert client.post("/jobs", json={"query": "q"}).get_json()["mode"] == "reason"

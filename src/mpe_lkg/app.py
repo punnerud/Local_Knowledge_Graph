@@ -18,7 +18,7 @@ from flask import Flask, Response, jsonify, render_template, request
 
 from . import backends, rdf
 from .jobs import Job, Registry
-from .reasoning import reason
+from .reasoning import explore, reason, settle
 from .store import EmbeddingStore
 
 app = Flask(__name__)
@@ -163,13 +163,23 @@ def favicon():
 JOBS = Registry()
 
 
-def _job_events(user_query: str, store_path: str):
+def _job_events(user_query: str, store_path: str, mode: str = "reason"):
     """The reasoning events for a headless run, with its own backends and store."""
     chat, embedder = app.config.get("BACKENDS_FACTORY", make_backends)()
     store = EmbeddingStore(store_path)
+    decompose = int(os.environ.get("LKG_DECOMPOSE", "8"))
     try:
-        yield from reason(user_query, chat=chat, embedder=embedder, store=store,
-                          decompose=int(os.environ.get("LKG_DECOMPOSE", "8")))
+        if mode == "settle":
+            # Explored, then explored again, and finished only when two
+            # independent runs agree. No single call decides.
+            yield from settle(user_query, chat=chat, embedder=embedder,
+                              store=store, decompose=decompose)
+        elif mode == "explore":
+            yield from explore(user_query, chat=chat, embedder=embedder,
+                               store=store, decompose=decompose)
+        else:
+            yield from reason(user_query, chat=chat, embedder=embedder, store=store,
+                              decompose=decompose)
     finally:
         store.close()
 
@@ -185,9 +195,17 @@ def jobs():
     if not user_query:
         return jsonify({"error": "No query provided"}), 400
 
+    # reason: one run. explore: each sub-question answered by its own run.
+    # settle: explored twice, finished only on agreement.
+    mode = str((payload or {}).get("mode", "reason")).strip().lower()
+    if mode not in {"reason", "explore", "settle"}:
+        return jsonify({"error": f"unknown mode {mode!r}",
+                        "modes": ["reason", "explore", "settle"]}), 400
+
     job = Job(user_query)
+    job.mode = mode
     JOBS.add(job)
-    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH)))
+    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH), mode))
     # 202: accepted and still running. The Location header is where to look.
     return jsonify(job.status()), 202, {"Location": f"/jobs/{job.id}"}
 
@@ -269,10 +287,16 @@ def _triples_for(job, events: list[dict]):
 @app.route("/query", methods=["GET", "POST"])
 def query():
     if request.method == "POST":
-        user_query = (request.json or {}).get("query", "")
+        payload = request.json or {}
+        user_query = payload.get("query", "")
+        mode = str(payload.get("mode", "reason"))
     else:
         user_query = request.args.get("query", "")
+        mode = request.args.get("mode", "reason")
     user_query = user_query.strip()
+    mode = mode.strip().lower()
+    if mode not in {"reason", "explore", "settle"}:
+        mode = "reason"
 
     if not user_query:
         return jsonify({"error": "No query provided"}), 400
@@ -306,7 +330,8 @@ def query():
                     is_question=True,
                     model=embedder.describe().get("model", ""),
                 )
-                for event in reason(user_query, chat=chat, embedder=embedder, store=store):
+                runner = {"explore": explore, "settle": settle}.get(mode, reason)
+                for event in runner(user_query, chat=chat, embedder=embedder, store=store):
                     events.put(event)
                     if event["type"] == "error":
                         return

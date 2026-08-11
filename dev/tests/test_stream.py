@@ -421,3 +421,49 @@ class TestArithmeticGate:
                              embedder=DeterministicEmbedding(32),
                              check_arithmetic=False, synthesise=False))
         assert not [e for e in events if e["type"] == "arithmetic"]
+
+
+class TestWellFormedConversation:
+    """Every request must be a legal conversation, on every model.
+
+    Found in a browser, not in a test: the first run against qwen3 died on
+    HTTP 400, "Cannot have 2 or more assistant messages at the end of the list".
+    Without a plan to walk, nothing appended a user turn between steps, so the
+    conversation became system, user, then assistant after assistant. llama3.2
+    had accepted it for as long as this code has existed.
+    """
+
+    def test_no_two_assistant_turns_in_a_row(self):
+        import json
+
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        def step(action="continue"):
+            return json.dumps({"title": "T", "content": "Some working.", "calc": "",
+                               "calc_of": "", "convert": "", "next_action": action})
+
+        chat = ScriptedChat([step(), step(), step(), step("final_answer"), "The answer."])
+        list(reason("A question with no decomposition.", chat=chat,
+                    embedder=DeterministicEmbedding(32)))
+
+        assert chat.calls, "the model was never called"
+        for messages in chat.calls:
+            roles = [m["role"] for m in messages]
+            doubled = [i for i in range(len(roles) - 1)
+                       if roles[i] == roles[i + 1] == "assistant"]
+            assert not doubled, f"consecutive assistant turns at {doubled}: {roles}"
+
+    def test_the_conversation_starts_with_a_user_turn_after_the_system_one(self):
+        import json
+
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        chat = ScriptedChat([json.dumps({"title": "T", "content": "C", "calc": "",
+                                         "calc_of": "", "convert": "",
+                                         "next_action": "final_answer"}), "Answer."])
+        list(reason("q", chat=chat, embedder=DeterministicEmbedding(32)))
+        first = chat.calls[0]
+        assert first[0]["role"] == "system"
+        assert first[1]["role"] == "user"
