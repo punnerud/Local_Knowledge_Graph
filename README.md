@@ -28,6 +28,29 @@ which is which.
 
 Everything runs on your machine. Nothing is uploaded anywhere.
 
+## Three ways to answer
+
+```bash
+curl -sX POST localhost:5100/jobs -H 'content-type: application/json' \
+     -d '{"query":"...","mode":"settle"}'
+```
+
+| mode | what it does |
+|---|---|
+| `reason` | one run — steps, a graph, an answer |
+| `explore` | the question is split into questions, **each answered by a run of its own**, then assembled |
+| `settle` | explored, explored **again**, and finished only when two independent runs agree |
+
+`settle` exists so that no single call decides. When the two runs disagree, three
+checks vote through different lenses — same value, same conclusion, same action —
+and the tally is shown rather than reduced to a verdict, because 2-1 and 3-0 are
+different things.
+
+A vote is still opinion, so both answers are then **probed**. The same sum with
+its numbers moved is graded against the exact evaluator and settles the matter
+outright; asking what a knower would also know is suggestive only, and labelled
+as such, because a model can be confidently and consistently wrong.
+
 ## Headless, and as RDF
 
 A run can be started without a browser, polled, and taken as RDF — the graph as text, for

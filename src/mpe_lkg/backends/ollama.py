@@ -145,6 +145,21 @@ class OllamaEmbedding:
         return payload["embedding"]
 
 
+JSON_ONLY = "Reply with JSON only, no explanation."
+
+
+def _json_only(messages: list[dict]) -> list[dict]:
+    """The same conversation, with the last user turn asking for JSON alone."""
+    out = [dict(m) for m in messages]
+    for message in reversed(out):
+        if message.get("role") == "user":
+            if JSON_ONLY not in message.get("content", ""):
+                message["content"] = f"{message['content']}\n{JSON_ONLY}"
+            return out
+    out.append({"role": "user", "content": JSON_ONLY})
+    return out
+
+
 class OllamaChat:
     """Streaming chat completions from Ollama."""
 
@@ -190,6 +205,14 @@ class OllamaChat:
         }
         if schema is not None:
             payload["format"] = schema
+            # A constrained model still wants to explain itself, and the grammar
+            # forbids prose -- so it emits whitespace, which the grammar DOES
+            # allow, until the token budget runs out. Measured on
+            # qwen3:4b-instruct-2507: an eight-hundred-token budget spent
+            # entirely on whitespace, returning nothing, while the same prompt
+            # with this line answered in ten. It looks like a model that cannot
+            # follow a schema and is a model being given contradictory orders.
+            payload["messages"] = _json_only(messages)
 
         try:
             response = self._session.post(
