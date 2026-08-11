@@ -120,6 +120,9 @@ def run_triples(
     steps: list[dict] | None = None,
     conversions: list[str] | None = None,
     sums: list[str] | None = None,
+    findings: list[dict] | None = None,
+    votes: list[dict] | None = None,
+    agreement: dict | None = None,
 ) -> Iterator[str]:
     """Every triple for a run, in an order that streams sensibly.
 
@@ -173,6 +176,42 @@ def run_triples(
         yield triple(node, _p("statement"), literal(statement))
         yield triple(node, _p("basis"), _p("Exact"))
         yield triple(run, _p("fact"), node)
+
+    # The structure of an exploration: which questions the question became, and
+    # what each one came back with. Verified missing before being added -- a
+    # settle run produced branches, findings, a vote and an agreement, and the
+    # serialisation dropped every one, so a consumer could not tell an agreed
+    # answer from a single run's synthesis.
+    for index, finding in enumerate(findings or [], 1):
+        node = iri("run", run_id, "finding", str(index))
+        yield triple(node, f"<{RDF_TYPE}>", _p("Finding"))
+        yield triple(node, _p("question"), literal(finding.get("question", "")))
+        yield triple(node, _p("answer"), literal(finding.get("answer", "")))
+        yield triple(run, _p("finding"), node)
+
+    # The vote is opinion and is marked as such: three readings of two answers,
+    # not a fact about the world. lkg:basis distinguishes it the same way the
+    # colours do.
+    for index, tally in enumerate(votes or [], 1):
+        node = iri("run", run_id, "vote", str(index))
+        yield triple(node, f"<{RDF_TYPE}>", _p("Vote"))
+        yield triple(node, _p("agreeing"), f'"{int(tally.get("agree", 0))}"^^<{XSD}integer>')
+        yield triple(node, _p("dissenting"), f'"{int(tally.get("disagree", 0))}"^^<{XSD}integer>')
+        yield triple(node, _p("basis"), _p("Opinion"))
+        if tally.get("about"):
+            yield triple(node, _p("about"), literal(tally["about"]))
+        yield triple(run, _p("vote"), node)
+
+    if agreement:
+        node = iri("run", run_id, "agreement")
+        yield triple(node, f"<{RDF_TYPE}>", _p("Agreement"))
+        # "wording" when two runs matched outright, "vote" when a majority said
+        # so. A consumer weighing the answer is entitled to the difference.
+        yield triple(node, _p("by"), literal(agreement.get("by", "vote")))
+        if agreement.get("round"):
+            yield triple(node, _p("round"),
+                         f'"{int(agreement["round"])}"^^<{XSD}integer>')
+        yield triple(run, _p("agreement"), node)
 
 
 # "23 week = 13910400 second" -- taken apart so the units become nodes and the
