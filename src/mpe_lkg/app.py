@@ -12,10 +12,12 @@ import os
 import queue
 import socket
 import threading
+import time
 
 from flask import Flask, Response, jsonify, render_template, request
 
-from . import backends
+from . import backends, rdf
+from .jobs import Job, Registry
 from .reasoning import reason
 from .store import EmbeddingStore
 
@@ -156,6 +158,112 @@ def favicon():
         "</svg>"
     )
     return Response(dot, mimetype="image/svg+xml", headers={"Cache-Control": "max-age=86400"})
+
+
+JOBS = Registry()
+
+
+def _job_events(user_query: str, store_path: str):
+    """The reasoning events for a headless run, with its own backends and store."""
+    chat, embedder = app.config.get("BACKENDS_FACTORY", make_backends)()
+    store = EmbeddingStore(store_path)
+    try:
+        yield from reason(user_query, chat=chat, embedder=embedder, store=store,
+                          decompose=int(os.environ.get("LKG_DECOMPOSE", "8")))
+    finally:
+        store.close()
+
+
+@app.route("/jobs", methods=["GET", "POST"])
+def jobs():
+    """POST a question to start a headless run; GET lists what is known."""
+    if request.method == "GET":
+        return jsonify({"jobs": [j.status() for j in JOBS.all()]})
+
+    payload = request.json if request.is_json else request.form
+    user_query = str((payload or {}).get("query", "")).strip()
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
+
+    job = Job(user_query)
+    JOBS.add(job)
+    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH)))
+    # 202: accepted and still running. The Location header is where to look.
+    return jsonify(job.status()), 202, {"Location": f"/jobs/{job.id}"}
+
+
+@app.route("/jobs/<job_id>", methods=["GET", "DELETE"])
+def job_detail(job_id: str):
+    job = JOBS.get(job_id)
+    if job is None:
+        return jsonify({"error": "no such job"}), 404
+    if request.method == "DELETE":
+        # Idempotent: killing a finished job is not an error, it is a no-op with
+        # the same visible outcome, and a retrying client should not see a 409.
+        job.kill()
+        return jsonify(job.status())
+    return jsonify(job.status())
+
+
+@app.route("/jobs/<job_id>/rdf")
+def job_rdf(job_id: str):
+    """The finished graph as Turtle, or as N-Triples with ?format=nt."""
+    job = JOBS.get(job_id)
+    if job is None:
+        return jsonify({"error": "no such job"}), 404
+
+    wants_nt = request.args.get("format", "turtle").lower() in {"nt", "ntriples", "n-triples"}
+    render = rdf.to_ntriples if wants_nt else rdf.to_turtle
+    body = render(
+        job.id, job.question,
+        graph=job.graph(), answer=job.answer,
+        steps=job.of_type("step"),
+        conversions=[e["result"] for e in job.of_type("convert")],
+        sums=[f"{e['expression']} = {e['value']}" for e in job.of_type("calc")],
+    )
+    kind = "application/n-triples" if wants_nt else "text/turtle"
+    return Response(body, mimetype=f"{kind}; charset=utf-8")
+
+
+@app.route("/jobs/<job_id>/stream")
+def job_stream(job_id: str):
+    """N-Triples as the run produces them, one complete triple per line.
+
+    N-Triples rather than Turtle because a line is valid on its own: there are no
+    prefixes to declare and no state to carry, so a consumer can parse what has
+    arrived without waiting for the end. Turtle cannot be streamed this way, which
+    is why the finished document is the one that gets prefixes.
+    """
+    job = JOBS.get(job_id)
+    if job is None:
+        return jsonify({"error": "no such job"}), 404
+
+    def generate():
+        sent = 0
+        seen: set[str] = set()
+        while True:
+            events = job.snapshot()
+            new, sent = events[sent:], len(events)
+            for line in _triples_for(job, new):
+                if line not in seen:
+                    seen.add(line)
+                    yield line + "\n"
+            if job.done.is_set() and sent >= len(job.snapshot()):
+                return
+            time.sleep(0.1)
+
+    return Response(generate(), mimetype="application/n-triples; charset=utf-8")
+
+
+def _triples_for(job, events: list[dict]):
+    """Triples for a slice of new events, using the same vocabulary as the file."""
+    steps = [e for e in events if e.get("type") == "step"]
+    converts = [e["result"] for e in events if e.get("type") == "convert"]
+    calcs = [f"{e['expression']} = {e['value']}" for e in events if e.get("type") == "calc"]
+    graph = next((e["graph"] for e in reversed(events) if e.get("graph")), None)
+    answer = next((e.get("content", "") for e in events if e.get("type") == "final"), "")
+    return rdf.run_triples(job.id, job.question, graph=graph, answer=answer,
+                           steps=steps, conversions=converts, sums=calcs)
 
 
 @app.route("/query", methods=["GET", "POST"])

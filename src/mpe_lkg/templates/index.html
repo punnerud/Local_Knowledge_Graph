@@ -203,6 +203,77 @@
             return html;
         }
 
+        // Green: settled by an exact evaluator. Deliberately distinct from the blue
+        // of an embedding similarity, because the two are not the same kind of
+        // statement and a reader should never have to guess which is which.
+        const EXACT = { border: '#2e7d32', background: '#a5d6a7',
+                        highlight: { border: '#1b5e20', background: '#81c784' } };
+
+        function addExactConversion(data) {
+            const parsed = /^(\S+)\s+(\w+)\s*=\s*(\S+)\s+(\w+)$/.exec(data.result || '');
+            if (!parsed) return;
+            const [, fromValue, fromUnit, toValue, toUnit] = parsed;
+            [fromUnit, toUnit].forEach(unit => {
+                const id = 'unit:' + unit;
+                if (!nodes.get(id)) {
+                    nodes.add({ id, label: unit, shape: 'box', color: EXACT,
+                                font: { size: 12 }, title: 'unit' });
+                }
+            });
+            const id = `conv:${fromUnit}:${toUnit}`;
+            if (!edges.get(id)) {
+                edges.add({ id, from: 'unit:' + fromUnit, to: 'unit:' + toUnit,
+                            label: `${fromValue} = ${toValue}`, color: { color: '#2e7d32' },
+                            width: 2, length: 220, dashes: false,
+                            title: `exact: ${data.result}` });
+            }
+            // Tie it to the step that asked, so the two graphs are one picture.
+            linkToStep(data.step, 'unit:' + fromUnit, 'asked');
+            if (network) network.setOptions({ physics: { enabled: true } });
+        }
+
+        function addExactSum(data) {
+            const id = `calc:${data.step}:${data.expression}`;
+            if (nodes.get(id)) return;
+            nodes.add({ id, label: `${data.expression} = ${data.value}`, shape: 'box',
+                        color: EXACT, font: { size: 11 }, title: 'settled exactly' });
+            linkToStep(data.step, id, 'computed');
+            if (network) network.setOptions({ physics: { enabled: true } });
+        }
+
+        // A calc or convert event arrives BEFORE the step event it belongs to --
+        // the loop settles the arithmetic and only then emits the step. So a link
+        // whose step node does not exist yet is remembered and attached when it
+        // appears, rather than dropped.
+        let pendingLinks = [];
+
+        function linkToStep(stepNumber, nodeId, label) {
+            const stepId = 'Step' + stepNumber;
+            if (!nodes.get(stepId)) { pendingLinks.push({ stepId, nodeId, label }); return; }
+            const id = `link:${stepId}:${nodeId}`;
+            if (edges.get(id)) return;
+            edges.add({ id, from: stepId, to: nodeId, label,
+                        color: { color: '#81c784' }, width: 1, length: 200,
+                        dashes: [4, 4], font: { size: 10, color: '#2e7d32' } });
+        }
+
+        function attachPending() {
+            const waiting = pendingLinks;
+            pendingLinks = [];
+            waiting.forEach(({ stepId, nodeId, label }) => {
+                if (!nodes.get(stepId) || !nodes.get(nodeId)) {
+                    pendingLinks.push({ stepId, nodeId, label });
+                    return;
+                }
+                const id = `link:${stepId}:${nodeId}`;
+                if (!edges.get(id)) {
+                    edges.add({ id, from: stepId, to: nodeId, label,
+                                color: { color: '#81c784' }, width: 1, length: 200,
+                                dashes: [4, 4], font: { size: 10, color: '#2e7d32' } });
+                }
+            });
+        }
+
         function updateGraph(graphData) {
             // New nodes need the solver back: it switched itself off when the
             // previous layout settled, and switches off again on 'stabilized'.
@@ -211,9 +282,18 @@
             graphData.nodes.forEach(node => {
                 if (nodes.get(node.id)) { nodes.update(node); } else { nodes.add(node); }
             });
-            nodes.getIds().filter(id => !incoming.has(id)).forEach(id => nodes.remove(id));
+            // The exact graph is built in the browser from calc and convert events,
+            // so it is not in the server's payload -- and pruning by that payload
+            // deleted every green node the instant it was added. Anything the
+            // browser owns is kept.
+            const mine = id => /^(unit:|calc:)/.test(String(id));
+            nodes.getIds().filter(id => !incoming.has(id) && !mine(id))
+                 .forEach(id => nodes.remove(id));
+            const exactEdges = edges.get({ filter: e => /^(conv:|link:)/.test(String(e.id)) });
             edges.clear();
             edges.add(graphData.edges);
+            edges.add(exactEdges);
+            attachPending();
             network.fit();
         }
 
@@ -378,6 +458,7 @@
             sums.hidden = true;
             sums.innerHTML = '';
             seenSums.clear();
+            pendingLinks = [];
             nodes.clear();
             edges.clear();
             setBusy(true);
@@ -403,7 +484,16 @@
                     appendPanel('final-answer', 'Final Answer', data);
                     if (data.graph) updateGraph(data.graph);
 
+                } else if (data.type === 'convert') {
+                    // The hard graph. A conversion is a fact about two units, so it
+                    // draws as two unit nodes and an edge between them -- the same
+                    // shape as the soft graph, in a colour that says it is a
+                    // different kind of claim. Blue is measured similarity and has
+                    // no truth value; green is derived from exact ratios.
+                    addExactConversion(data);
+
                 } else if (data.type === 'calc') {
+                    addExactSum(data);
                     // Deliberately not deduplicated away entirely: a repeated sum
                     // means the model re-derived it, which is worth seeing. But the
                     // same expression twice adds nothing, so it is shown once.

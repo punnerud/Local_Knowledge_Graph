@@ -39,6 +39,7 @@ LOOPS = "docs/claims/loops.json"
 EVAL = "docs/claims/eval.json"
 BATTERY = "docs/claims/battery_20260811.json"
 BATTERY_REPLICATION = "docs/claims/battery_99.json"
+UNITS = "docs/claims/battery_4242.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -377,6 +378,23 @@ FILE_CHECKS = [
         2.0,
         2.0,
         "a couple of runs still compute the right value and answer something else",
+    ),
+    (
+        UNITS,
+        # Unit questions were the one group exact arithmetic could not touch: 0 of
+        # 4, with every failure dimensional rather than arithmetic. Naming the
+        # conversion instead of computing it is what moved them at all.
+        lambda d: float(d["gate_on"]["correct"]) / max(d["gate_on"]["n"], 1),
+        0.33,
+        0.25,
+        "naming the conversion moves unit questions off zero",
+    ),
+    (
+        UNITS,
+        lambda d: float(d["gate_off"]["correct"]),
+        0.0,
+        0.0,
+        "and without it the model gets none of them",
     ),
 ]
 

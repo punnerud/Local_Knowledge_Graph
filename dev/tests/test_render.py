@@ -358,3 +358,37 @@ class TestGraphToLog:
             lengths = [e["length"] for e in graph_state(page)["edges"]]
             assert lengths, "no edges to check"
             assert min(lengths) >= 160.0, f"shortest edge {min(lengths):.0f} px"
+
+    def test_the_exact_graph_is_drawn_in_its_own_colour(self, page, tmp_path):
+        """Two graphs in one picture, and a reader must not have to guess which is which.
+
+        Blue is measured similarity between embeddings: an association, with no
+        truth value. Green is settled by an exact evaluator. They are different
+        kinds of claim, so they get different colours rather than a legend.
+        """
+        script = [
+            step("Convert", "Ask for the whole thing.", calc="23*604800"),
+            step("Answer", "Give it.", "final_answer"),
+            "13910400 seconds.",
+        ]
+        with LiveServer(script, tmp_path) as server:
+            run_query(page, server, "How many seconds are there in 23 weeks?")
+            state = graph_state(page)
+            exact = [n for n in state["nodes"]
+                     if (n.get("color") or {}).get("background") == "#a5d6a7"]
+            assert exact, "the settled sum should appear as its own node"
+            # And it is joined to the step that produced it, so the two graphs read
+            # as one picture rather than two drawings sharing a canvas.
+            ids = {n["id"] for n in exact}
+            assert any(e["to"] in ids and str(e["from"]).startswith("Step")
+                       for e in state["edges"])
+
+    def test_a_conversion_draws_the_two_units_it_relates(self, page, tmp_path):
+        script = [
+            step("Convert", "Ask.", "final_answer", convert="23 weeks to seconds"),
+            "13910400 seconds.",
+        ]
+        with LiveServer(script, tmp_path) as server:
+            run_query(page, server, "How many seconds are there in 23 weeks?")
+            labels = {n.get("label") for n in graph_state(page)["nodes"]}
+            assert "week" in labels and "second" in labels
