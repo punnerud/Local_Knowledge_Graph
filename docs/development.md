@@ -20,6 +20,24 @@ consistent error.
 Every measurement script writes both its summary and the raw material it was computed from, so
 a number can be re-derived rather than taken on trust.
 
+## From a clone, or from Python
+
+```bash
+git clone https://github.com/punnerud/Local_Knowledge_Graph
+cd Local_Knowledge_Graph
+python3 -m venv .venv && .venv/bin/pip install -e .
+.venv/bin/mpe-lkg
+```
+
+`python app.py` still works from a clone as it always has.
+
+```python
+from mpe_lkg import create_app, health
+
+print(health())
+create_app().run(port=5100)
+```
+
 ## Does the model actually loop?
 
 `make loops` runs 24 questions across four kinds — simple, multi-step, malformed, ambiguous —

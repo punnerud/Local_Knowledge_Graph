@@ -142,3 +142,54 @@ def test_a_title_with_a_space_does_not_produce_a_broken_iri():
     text = rdf.to_ntriples(
         "abc 123", "q", graph={"edges": [{"from": "a b", "to": "c<d", "value": 0.5}]})
     assert len(parse(text, "nt")) > 0
+
+
+class TestExplorationVocabulary:
+    """The structure of an exploration survives into the RDF.
+
+    Verified missing before being added: a real settle run produced branches,
+    findings, a vote and an agreement, and the serialisation dropped every one --
+    valid Turtle, correct answer, and no way for a consumer to tell an agreed
+    answer from a single run's synthesis.
+    """
+
+    def _doc(self, **kw):
+        return parse(rdf.to_turtle("abc123", "How many minutes in a fortnight?", **kw),
+                     "turtle")
+
+    def test_findings_carry_their_question_and_answer(self):
+        g = self._doc(findings=[
+            {"question": "How many days in a fortnight?", "answer": "14 days."},
+            {"question": "How many minutes in a day?", "answer": "1440."}])
+        found = list(g.subjects(rdflib.RDF.type, rdflib.URIRef(f"{LKG}Finding")))
+        assert len(found) == 2
+        answers = {str(o) for o in g.objects(None, rdflib.URIRef(f"{LKG}answer"))}
+        assert "14 days." in answers
+
+    def test_a_vote_is_a_tally_marked_as_opinion(self):
+        g = self._doc(votes=[{"agree": 2, "disagree": 1, "about": "the total"}])
+        vote = next(g.subjects(rdflib.RDF.type, rdflib.URIRef(f"{LKG}Vote")))
+        assert str(g.value(vote, rdflib.URIRef(f"{LKG}agreeing"))) == "2"
+        assert str(g.value(vote, rdflib.URIRef(f"{LKG}dissenting"))) == "1"
+        # Opinion, not Exact: a consumer filtering on basis must not pick it up
+        # alongside the calculator's output.
+        assert g.value(vote, rdflib.URIRef(f"{LKG}basis")) == rdflib.URIRef(f"{LKG}Opinion")
+
+    def test_agreement_says_how_it_was_reached(self):
+        g = self._doc(agreement={"by": "wording", "round": 2})
+        node = next(g.subjects(rdflib.RDF.type, rdflib.URIRef(f"{LKG}Agreement")))
+        assert str(g.value(node, rdflib.URIRef(f"{LKG}by"))) == "wording"
+        assert str(g.value(node, rdflib.URIRef(f"{LKG}round"))) == "2"
+
+    def test_a_plain_run_gains_none_of_this(self):
+        g = self._doc()
+        for kind in ("Finding", "Vote", "Agreement"):
+            assert not list(g.subjects(rdflib.RDF.type, rdflib.URIRef(f"{LKG}{kind}")))
+
+    def test_both_formats_still_agree_with_the_new_classes(self):
+        kw = {"findings": [{"question": "q?", "answer": "a."}],
+              "votes": [{"agree": 3, "disagree": 0}],
+              "agreement": {"by": "vote", "round": 1}}
+        turtle = parse(rdf.to_turtle("abc123", "q", **kw), "turtle")
+        nt = parse(rdf.to_ntriples("abc123", "q", **kw), "nt")
+        assert set(turtle) == set(nt)

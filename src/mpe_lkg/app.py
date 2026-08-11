@@ -238,6 +238,11 @@ def job_rdf(job_id: str):
         steps=job.of_type("step"),
         conversions=[e["result"] for e in job.of_type("convert")],
         sums=[f"{e['expression']} = {e['value']}" for e in job.of_type("calc")],
+        # Only top-level findings: a sub-run's own findings describe its own
+        # question, and flattening every level into one list loses which is which.
+        findings=[e for e in job.of_type("finding") if not e.get("level")],
+        votes=job.of_type("vote"),
+        agreement=next(iter(job.of_type("agreed")), None),
     )
     kind = "application/n-triples" if wants_nt else "text/turtle"
     return Response(body, mimetype=f"{kind}; charset=utf-8")
