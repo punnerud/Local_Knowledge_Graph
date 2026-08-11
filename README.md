@@ -13,6 +13,13 @@
 Ask a local model a question, watch it reason step by step, and see the steps drawn as a graph
 where the edges are how similar the steps are to each other.
 
+The run starts by breaking the question into angles worth checking, then works through them —
+about eight steps, each with a named job rather than a quota to fill. Any arithmetic a step
+relies on is handed over as an expression and evaluated exactly, in fractions, by
+[mpeqs](https://github.com/punnerud/MPEqs). Those sums are shown above the graph: they are the
+one part of a run the model did not decide, and you can check `20-13.5 = 6.5` at a glance in a
+way you cannot check a paragraph of reasoning.
+
 Everything runs on your machine. Nothing is uploaded anywhere.
 
 ## Run it
