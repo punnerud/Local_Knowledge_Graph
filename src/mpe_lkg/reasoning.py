@@ -1446,3 +1446,203 @@ def _final(answer: str, rounds: int, started: float, *, agreed: bool) -> dict:
         "rounds": rounds,
         "total_time": round(time.time() - started, 2),
     }
+
+NEIGHBOUR_PROMPT = (
+    "Question: {question}\n"
+    "Answer given: {answer}\n\n"
+    "Write {n} questions that someone who genuinely knows that answer would also "
+    "be able to answer, going from the obvious towards the obscure -- the last "
+    "should be something only a specialist would know.\n"
+    "Each must have a short, definite, factual answer. No opinions, no "
+    "explanations, nothing that depends on the date.\n"
+    'Reply as JSON: {{"questions": ["...?", "...?"]}}'
+)
+
+# Two answers to the same question this close are the same answer. Below it the
+# model gave two different answers to one question, which is the signal.
+CONSISTENT = 0.88
+
+# The probe MUST sample. Measured, four askings each:
+#
+#   temperature 0.0   capital of France 1.000   street north of Rue Cler 1.000
+#   temperature 1.0   capital of France 1.000   street north of Rue Cler 0.537
+#
+# At temperature 0 greedy decoding returns the same string whether the model
+# knows the answer or is inventing it, so the probe reports perfect confidence in
+# pure fabrication. The variation IS the measurement, and a caller running the
+# rest of the loop at temperature 0 would otherwise silently disable it.
+PROBE_TEMPERATURE = 1.0
+
+# How many times each probe is asked. Two can disagree; three says which way.
+ASKINGS = 3
+
+
+def perturbations(question: str, limit: int = 3) -> list[tuple[str, Fraction]]:
+    """The same arithmetic question with the numbers changed, and the true answers.
+
+    The sharpest probe available, because it needs no judgement at all: the truth
+    comes from the exact evaluator, not from a model. A model that answers
+    "17 * 250" correctly and "18 * 251" wrongly was recalling, not calculating,
+    and the first answer is worth what the second one is.
+    """
+    numbers = re.findall(r"\d+(?:\.\d+)?", question)
+    if len(numbers) < 2:
+        return []
+
+    out = []
+    # Nudged, then scaled: a near neighbour catches recall, a large one catches a
+    # method that only works at the size it was learned on.
+    for factor, shift in ((1, 1), (1, 3), (1000, 0)):
+        changed = question
+        parts = []
+        for text in numbers:
+            try:
+                value = Fraction(text)
+            except (ValueError, ZeroDivisionError):
+                return []
+            moved = value * factor + shift
+            moved = moved if moved.denominator != 1 else Fraction(int(moved))
+            parts.append((text, as_text(moved)))
+        for old, new in parts:
+            changed = re.sub(rf"(?<!\d){re.escape(old)}(?!\d)", new, changed, count=1)
+        expression = _expression_of(changed)
+        if expression is None:
+            continue
+        truth = evaluate(expression)
+        if truth is not None:
+            out.append((changed, truth))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _expression_of(question: str):
+    """The arithmetic a question is asking for, if it is asking for arithmetic."""
+    numbers = re.findall(r"\d+(?:\.\d+)?", question)
+    if len(numbers) != 2:
+        return None
+    lowered = question.lower()
+    for words, operator in (
+        (("multiplied", "times", "product", "*"), "*"),
+        (("plus", "sum", "added", "add", "+"), "+"),
+        (("minus", "subtract", "less", "-"), "-"),
+        (("divided", "over", "/"), "/"),
+    ):
+        if any(word in lowered for word in words):
+            return f"{numbers[0]}{operator}{numbers[1]}"
+    return None
+
+
+def neighbourhood(chat, question: str, answer: str, want: int = 4) -> list[str]:
+    """Questions a genuine knower of this answer could also answer.
+
+    Ordered from the obvious towards the obscure on purpose: "Paris is the
+    capital" is worth little on its own, because it is in every corpus a hundred
+    thousand times. Whether the same model can name the river, the region and a
+    street says whether there is knowledge behind it or a single memorised string.
+    """
+    try:
+        raw = "".join(chat.stream(
+            [{"role": "user", "content": NEIGHBOUR_PROMPT.format(
+                question=question, answer=answer, n=want)}],
+            400, schema=SUBQUESTION_SCHEMA,
+        ))
+    except BackendError:
+        return []
+    out, seen = [], set()
+    for item in extract_json(raw).get("questions") or []:
+        text = " ".join(str(item).split())[:160]
+        if text and text.lower() not in seen:
+            seen.add(text.lower())
+            out.append(text)
+    return out[:want]
+
+
+def _steady(chat, embedder, question: str, askings: int = ASKINGS) -> tuple[bool, str]:
+    """Does the model give the same answer to this every time?
+
+    The whole probe rests on this, and on one property: no ground truth is needed.
+    At the edge of what it knows a model does not fall silent, it confabulates --
+    and confabulates DIFFERENTLY each time. Agreement with itself is therefore
+    evidence, and disagreement is proof.
+    """
+    # Sampled, not greedy -- see PROBE_TEMPERATURE. Set on a copy so the caller's
+    # own settings are untouched, and restored even if a call raises.
+    previous = getattr(chat, "temperature", None)
+    if previous is not None:
+        chat.temperature = PROBE_TEMPERATURE
+
+    answers = []
+    for _ in range(askings):
+        try:
+            raw = "".join(chat.stream(
+                [{"role": "user", "content":
+                  f"{question}\nAnswer in a few words. If you do not know, say "
+                  f"exactly: I do not know."}], 60))
+        except BackendError:
+            continue
+        answers.append(" ".join(raw.split()).strip())
+    if previous is not None:
+        chat.temperature = previous
+    if not answers:
+        return False, ""
+    if any("do not know" in a.lower() for a in answers):
+        return False, answers[0]
+
+    try:
+        vectors = embedder.embed(answers)
+    except BackendError:
+        return len(set(answers)) == 1, answers[0]
+    worst = min(similarity(vectors[i], vectors[j])
+                for i in range(len(vectors)) for j in range(i + 1, len(vectors)))
+    return worst >= CONSISTENT, answers[0]
+
+
+def edge(chat, embedder, question: str, answer: str, *, want: int = 4) -> dict:
+    """Is this answer near the edge of what the model knows?
+
+    Two probes, chosen by what the question is:
+
+    * **Arithmetic** -- the same sum with the numbers moved, graded against the
+      exact evaluator. Needs no judgement and admits no argument.
+    * **Anything else** -- questions a knower would also answer, each asked
+      several times. Not graded for correctness, which we do not have, but for
+      whether the model agrees with itself.
+
+    Returns a fraction held and the checks behind it. A low score does not make
+    the answer wrong; it says the answer is not supported by anything around it,
+    which is the difference between knowing Paris and having read it.
+    """
+    checks = []
+
+    for changed, truth in perturbations(question):
+        try:
+            raw = "".join(chat.stream(
+                [{"role": "user", "content": f"{changed}\nReply with the number alone."}],
+                60))
+        except BackendError:
+            continue
+        got = raw.replace(",", "").replace(" ", "")
+        checks.append({
+            "probe": changed,
+            "kind": "arithmetic",
+            "held": as_text(truth) in got,
+            "expected": as_text(truth),
+        })
+
+    if not checks:
+        for probe in neighbourhood(chat, question, answer, want):
+            steady, said = _steady(chat, embedder, probe)
+            checks.append({"probe": probe, "kind": "consistency",
+                           "held": steady, "said": said[:80]})
+
+    held = sum(1 for c in checks if c["held"])
+    return {
+        "checks": checks,
+        "held": held,
+        "asked": len(checks),
+        # No checks is not confidence. An unprobed answer scores zero, so a
+        # caller cannot mistake "nothing was asked" for "everything held".
+        "support": (held / len(checks)) if checks else 0.0,
+        "at_edge": bool(checks) and held * 2 <= len(checks),
+    }
