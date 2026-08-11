@@ -281,12 +281,20 @@ def reason(
     retries_that_helped = 0
     sums_checked = 0
     sums_corrected = 0
-    # Every sum the run settled exactly, as "expression = value". These are handed
-    # to the synthesis directly. Measured: the loop computed "20 - 13.5 = 6.5"
-    # correctly and the answer still came out as 2.50, because the step holding the
-    # value was not on the strongest path and the synthesis never saw it. Computing
-    # a number exactly is worth nothing if it does not reach the answer.
-    settled: list[str] = []
+    # Every sum the run settled exactly, kept with the step it came from. Both
+    # halves of that were measured the hard way:
+    #
+    # Computing a number exactly is worth nothing if it does not reach the answer:
+    # the loop settled "20 - 13.5 = 6.5" and still answered 2.50. So they are handed
+    # to the synthesis rather than left in the step text.
+    #
+    # But handing over ALL of them is worse than handing over none. A model
+    # exploring eight angles also writes "17*250" and "(17/1)*100", and presenting
+    # those under a heading saying they are correct is an invitation to pick one:
+    # multi-step accuracy fell to 50% against 100%, on answers like "604800 minutes
+    # in a fortnight" -- exactly right, for seconds in a week. So each sum keeps the
+    # index and title of its step, and only those on the strongest path are shown.
+    settled: list[tuple[int, str, str]] = []
     arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
@@ -370,7 +378,8 @@ def reason(
                 if exact is not None:
                     sums_checked += 1
                     stated = as_text(exact)
-                    settled.append(f"{calc} = {stated}")
+                    settled.append((len(step_texts), title or f"Step {step_number}",
+                                    f"{calc} = {stated}"))
                     # The exact value is appended rather than substituted: the
                     # model's own wording stays, and the number it can be held to
                     # sits beside it. The synthesis step reads this.
@@ -488,7 +497,14 @@ def reason(
             # is where a prompt that rewards exploring alternatives naturally ends.
             spine = _spine(node_ids, labels, vectors, top_k=top_k)
             started = time.time()
-            synthesised = _synthesise(chat, prompt, [step_texts[i] for i in spine], settled)
+            on_spine = set(spine)
+            # Sums from abandoned branches are not evidence about the answer. If the
+            # spine happens to hold none, showing all of them is no better than
+            # showing none, so nothing is shown.
+            thread_sums = [f"{title}: {sum_}" for i, title, sum_ in settled if i in on_spine]
+            synthesised = _synthesise(
+                chat, prompt, [step_texts[i] for i in spine], thread_sums
+            )
             total_thinking_time += time.time() - started
             if synthesised:
                 final_answer = synthesised

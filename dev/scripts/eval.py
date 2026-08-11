@@ -225,6 +225,9 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=3,
                         help="runs per question; one has no error bar (default 3)")
     parser.add_argument("--questions", type=int, default=0, help="cap the question count (0 = all)")
+    # Measuring one group is how a targeted change gets checked without paying for
+    # the 28 questions it cannot affect.
+    parser.add_argument("--group", default="", help="only this group (simple, multi_step, hard, ...)")
     parser.add_argument("--label", default="baseline", help="what this arm is called in the output")
     parser.add_argument("--out", default="docs/claims/eval.json")
     parser.add_argument("--no-synthesis", action="store_true",
@@ -248,7 +251,11 @@ def main() -> int:
 
     chat = backends.OllamaChat(backends.pick_chat_model())
     embedder = backends.OllamaEmbedding("")
-    specs = QUESTIONS[: args.questions] if args.questions else QUESTIONS
+    specs = [q for q in QUESTIONS if q["group"] == args.group] if args.group else QUESTIONS
+    if args.group and not specs:
+        parser.error(f"no group {args.group!r}; have "
+                     + ", ".join(sorted({q['group'] for q in QUESTIONS})))
+    specs = specs[: args.questions] if args.questions else specs
 
     print(f"arm={args.label}  chat={chat.model}  embeddings={embedder.model}")
     print(f"{len(specs)} questions x {args.repeats} runs = {len(specs) * args.repeats} runs\n")
