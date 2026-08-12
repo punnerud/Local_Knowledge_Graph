@@ -23,10 +23,17 @@ def run(
     decompose: int = 8,
     budget: float = 120.0,
     select: bool = False,
-    progress=print,
+    progress=None,
 ) -> dict:
     """Every question through the reasoning loop, one row each."""
     from ..reasoning import _steady, reason
+
+    if progress is None:
+        # Flushed, not buffered: a battery run takes half an hour, and a log
+        # that stays empty until exit is indistinguishable from a hung one.
+        import functools
+
+        progress = functools.partial(print, flush=True)
 
     rows = []
     for index, question in enumerate(questions, 1):
