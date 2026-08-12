@@ -71,7 +71,11 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     tag = args.model.split(":")[0].replace("/", "-") if args.model else "default"
     arm = "_select" if args.select else ""
-    out = OUT_DIR / f"battery_{args.seed}_{tag}{arm}.json"
+    # --group goes in the name too. It did not, and a two-question group rerun
+    # overwrote the pinned twenty-question baseline -- the second time a
+    # filename has nearly destroyed the number it was to be compared against.
+    part = f"_{args.group}" if args.group else ""
+    out = OUT_DIR / f"battery_{args.seed}_{tag}{arm}{part}.json"
     out.write_text(json.dumps({"seed": args.seed, **results}, indent=1))
     print(f"\nwrote {out}")
     return 0
