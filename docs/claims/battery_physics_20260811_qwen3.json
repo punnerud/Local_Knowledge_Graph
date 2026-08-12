@@ -1,0 +1,184 @@
+{
+ "n": 8,
+ "correct": 8,
+ "correct_rate": 1.0,
+ "settled_exactly": 0,
+ "computed_but_unused": 0,
+ "steps_mean": 6.75,
+ "errors": 0,
+ "per_group": {
+  "light_travel": {
+   "n": 2,
+   "correct": 2
+  },
+  "wind_distance": {
+   "n": 2,
+   "correct": 2
+  },
+  "around_earth": {
+   "n": 2,
+   "correct": 2
+  },
+  "speed_conversion": {
+   "n": 2,
+   "correct": 2
+  }
+ },
+ "rows": [
+  {
+   "group": "light_travel",
+   "domain": "physics",
+   "question": "Light travels at 299,792,458 metres per second. The average distance to the Sun is 149,597,870 kilometres. How many seconds does light take to cover that distance?",
+   "mode": "exact",
+   "expected": "74798935000/149896229",
+   "answer": "499.004782 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "149597870000 / 299792458 = 499.004782",
+    "149597870000 / 299792458 = 499.004782",
+    "149597870 * 1000 = 149597870000",
+    "149597870000 / 299792458 = 499.004782"
+   ],
+   "steps": 7,
+   "seconds": 35.3,
+   "error": ""
+  },
+  {
+   "group": "light_travel",
+   "domain": "physics",
+   "question": "Light travels at 299,792,458 metres per second. The average distance to Mars at its closest is 54,600,000 kilometres. How many seconds does light take to cover that distance?",
+   "mode": "exact",
+   "expected": "3900000000/21413747",
+   "answer": "182.126 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996"
+   ],
+   "steps": 7,
+   "seconds": 31.8,
+   "error": ""
+  },
+  {
+   "group": "wind_distance",
+   "domain": "physics",
+   "question": "A storm wind blows steadily at 45 miles per hour. One mile is exactly 1.609344 kilometres. How many kilometres does the wind travel in 40 hours?",
+   "mode": "exact",
+   "expected": "1810512/625",
+   "answer": "2896.8192 kilometres",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "1.609344 * (45 * 40) = 2896.8192",
+    "1.609344 * 45 * 40 = 2896.8192",
+    "1.609344 * 45 * 40 = 2896.8192",
+    "1.609344 * 45 * 40 = 2896.8192"
+   ],
+   "steps": 7,
+   "seconds": 31.3,
+   "error": ""
+  },
+  {
+   "group": "wind_distance",
+   "domain": "physics",
+   "question": "A storm wind blows steadily at 102 miles per hour. One mile is exactly 1.609344 kilometres. How many kilometres does the wind travel in 35 hours?",
+   "mode": "exact",
+   "expected": "17954244/3125",
+   "answer": "5745.35808 kilometres",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "102 * 35 = 3570",
+    "102 * 35 = 3570",
+    "102 * 35 * 1.609344 = 5745.35808",
+    "102 * 35 * 1.609344 = 5745.35808"
+   ],
+   "steps": 7,
+   "seconds": 22.9,
+   "error": ""
+  },
+  {
+   "group": "around_earth",
+   "domain": "physics",
+   "question": "The Earth's equator is 40,075 kilometres around. Travelling at a constant 886 kilometres per hour, how many hours does one full circuit take?",
+   "mode": "exact",
+   "expected": "40075/886",
+   "answer": "45.231377 hours",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "40075 / 886 = 45.231377",
+    "40075 / 886 = 45.231377"
+   ],
+   "steps": 7,
+   "seconds": 19.7,
+   "error": ""
+  },
+  {
+   "group": "around_earth",
+   "domain": "physics",
+   "question": "The Earth's equator is 40,075 kilometres around. Travelling at a constant 499 kilometres per hour, how many hours does one full circuit take?",
+   "mode": "exact",
+   "expected": "40075/499",
+   "answer": "80.310621",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "40075 / 499 = 80.310621",
+    "40075 / 499 = 80.310621",
+    "40075 / 499 = 80.310621"
+   ],
+   "steps": 5,
+   "seconds": 16.7,
+   "error": ""
+  },
+  {
+   "group": "speed_conversion",
+   "domain": "physics",
+   "question": "A vehicle moves at 88 miles per hour. One mile is exactly 1.609344 kilometres. What is its speed in metres per second?",
+   "mode": "exact",
+   "expected": "122936/3125",
+   "answer": "39.33952 metres per second",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "88 * 1.609344 * 1000 / 3600 = 39.33952",
+    "88 * 1.609344 * 1000 / 3600 = 39.33952"
+   ],
+   "steps": 7,
+   "seconds": 21.1,
+   "error": ""
+  },
+  {
+   "group": "speed_conversion",
+   "domain": "physics",
+   "question": "A vehicle moves at 45 miles per hour. One mile is exactly 1.609344 kilometres. What is its speed in metres per second?",
+   "mode": "exact",
+   "expected": "12573/625",
+   "answer": "20.1168 metres per second.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "45 * 1.609344 * 1000 / 3600 = 20.1168",
+    "45 * 1.609344 * 1000 / 3600 = 20.1168",
+    "45 * 1.609344 * 1000 / 3600 = 20.1168"
+   ],
+   "steps": 7,
+   "seconds": 31.7,
+   "error": ""
+  }
+ ],
+ "seed": 20260811,
+ "model": "qwen3:4b-instruct-2507-q4_K_M"
+}

@@ -128,4 +128,4 @@ def truth_table(questions: list[Question]) -> str:
 
 
 # Importing the domains registers them. At the bottom so the decorator exists.
-from . import arithmetic, consistency, logic, units  # noqa: E402, F401
+from . import arithmetic, consistency, logic, physics, units  # noqa: E402, F401
