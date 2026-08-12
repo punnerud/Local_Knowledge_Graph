@@ -46,6 +46,7 @@ QWEN_REPLICATION = "docs/claims/battery_555_qwen3.json"
 LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
 FULL_BATTERY = "docs/claims/battery_full_20260811_qwen3.json"
 PHYSICS = "docs/claims/battery_physics_20260811_qwen3.json"
+CALCPHYS = "docs/claims/battery_calcphys_20260811_qwen3.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -494,6 +495,17 @@ FILE_CHECKS = [
         1.0,
         0.25,
         "physics composition with stated constants is answered nearly clean",
+    ),
+    (
+        CALCPHYS,
+        # Calculus and extended physics together: derivatives at a point,
+        # definite integrals, tangent slopes, quadratic roots, free fall,
+        # acceleration, kinetic energy -- graded by mpeqs.calculus, whose two
+        # independent derivative paths must agree before any model is graded.
+        lambda d: d["correct_rate"],
+        0.86,
+        0.15,
+        "calculus and extended physics land above five in six",
     ),
     (
         QWEN_SELECT,

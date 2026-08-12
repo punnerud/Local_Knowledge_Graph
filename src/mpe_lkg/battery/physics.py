@@ -57,7 +57,8 @@ def build(seed: int, per_group: int) -> list[Question]:
             group="light_travel",
             text=(f"Light travels at 299,792,458 metres per second. The average "
                   f"distance to {body} is {int(distance):,} kilometres. How many "
-                  f"seconds does light take to cover that distance?"),
+                  f"seconds does light take to cover that distance? Give the "
+                  "answer to two decimal places."),
             answer=distance * 1000 / LIGHT,
             expression=f"{distance}*1000/299792458",
         ))
@@ -96,6 +97,56 @@ def build(seed: int, per_group: int) -> list[Question]:
                   f"per second?"),
             answer=Fraction(speed) * MILE_KM * 1000 / 3600,
             expression=f"{speed}*1609.344/3600",
+        ))
+
+    for _ in range(per_group):
+        # g stated, height BUILT from the answer: h = g*t^2/2 with integer t,
+        # so h's denominator is 200 and three decimals state it exactly. The
+        # first version formatted with %g, whose six significant digits
+        # truncated 3575.745 to "3575.74" -- a question whose stated figure
+        # disagreed with its graded answer, caught by the round-trip test
+        # before any model saw it.
+        t_fall = Fraction(rng.randrange(2, 30))
+        g = Fraction(981, 100)
+        height = g * t_fall * t_fall / 2
+        thousandths = height * 1000
+        assert thousandths.denominator == 1
+        stated = f"{int(thousandths) / 1000:.3f}".rstrip("0").rstrip(".")
+        out.append(Question(
+            group="free_fall",
+            text=(f"An object falls from rest, and the height fallen follows "
+                  f"h = g*t^2/2 with g = 9.81 metres per second squared. It "
+                  f"falls {stated} metres. How many seconds was it falling?"),
+            answer=t_fall,
+            expression=f"sqrt(2*{stated}/9.81)",
+        ))
+
+    for _ in range(per_group):
+        # v = u + a*t, all three stated, solve for v.
+        u = rng.randrange(0, 30)
+        a = rng.randrange(2, 12)
+        t_run = rng.randrange(3, 40)
+        out.append(Question(
+            group="acceleration",
+            text=(f"A vehicle starts at {u} metres per second and accelerates "
+                  f"at {a} metres per second squared for {t_run} seconds, "
+                  f"following v = u + a*t. What is its final speed in metres "
+                  "per second?"),
+            answer=Fraction(u + a * t_run),
+            expression=f"{u}+{a}*{t_run}",
+        ))
+
+    for _ in range(per_group):
+        # KE = m*v^2/2, both stated, v even so the answer is an integer.
+        mass = rng.randrange(2, 40)
+        speed = rng.randrange(2, 30) * 2
+        out.append(Question(
+            group="kinetic_energy",
+            text=(f"A mass of {mass} kilograms moves at {speed} metres per "
+                  f"second. Using KE = m*v^2/2, what is its kinetic energy "
+                  "in joules?"),
+            answer=Fraction(mass * speed * speed, 2),
+            expression=f"{mass}*{speed}**2/2",
         ))
 
     return out

@@ -218,3 +218,89 @@ class TestPhysics:
         assert 1 < seconds["the Moon"] < 2
         assert 480 < seconds["the Sun"] < 520          # about eight minutes
         assert 150 < seconds["Mars at its closest"] < 220
+
+
+class TestCalculus:
+    """Every answer checked through BOTH of mpeqs' derivative paths.
+
+    The calculus module ships the derivative twice -- symbolic rules and
+    dual-number autograd -- precisely so a consumer can demand agreement.
+    This battery does: a question whose two gradings disagreed would fail
+    here before any model ever saw it.
+    """
+
+    def _questions(self, group):
+        return [q for q in build(per_group=3, domains=["calculus"])
+                if q.group == group]
+
+    @pytest.mark.parametrize("question_index", range(3))
+    def test_derivatives_grade_the_same_both_ways(self, question_index):
+        from mpeqs import calculus as mc
+
+        question = self._questions("derivative_at")[question_index]
+        # d/dx (a*x**2 + b)**n at point -- parse the pieces back out.
+        m = re.search(r"\((\d+)x\^2 \+ (\d+)\)\^(\d+).*?x = (-?[\d/]+)",
+                      question.text)
+        a, b, n, at = m.group(1), m.group(2), m.group(3), Fraction(m.group(4))
+        expression = f"({a}*x**2 + {b})**{n}"
+        assert question.answer == mc.derivative_at(expression, at=at)
+        assert question.answer == mc.grad(expression, at)
+
+    @pytest.mark.parametrize("question_index", range(3))
+    def test_integrals_match_the_antiderivative_at_the_bounds(self, question_index):
+        from mpeqs import calculus as mc
+
+        question = self._questions("poly_integral")[question_index]
+        m = re.search(r"of (-?\d+)x\^2 \+ (-?\d+)x \+ (-?\d+) from x = (-?\d+) "
+                      r"to x = (-?\d+)", question.text)
+        c3, c1, c0, low, high = (int(g) for g in m.groups())
+        expression = f"{c3}*x**2 + {c1}*x + {c0}"
+        assert question.answer == mc.integrate(expression, lower=low, upper=high)
+        # And by the fundamental theorem, through the OTHER path: the
+        # antiderivative evaluated at the bounds.
+        anti = mc.integrate(expression)
+        assert question.answer == (mc.evaluate_at(anti, at=high)
+                                   - mc.evaluate_at(anti, at=low))
+
+    @pytest.mark.parametrize("question_index", range(3))
+    def test_quadratic_roots_substitute_back_to_zero(self, question_index):
+        question = self._questions("quadratic_root")[question_index]
+        m = re.search(r"Solve (\d+)x\^2 ([+-]) (\d+)x ([+-]) (\d+) = 0",
+                      question.text)
+        a = int(m.group(1))
+        b = int(m.group(3)) * (1 if m.group(2) == "+" else -1)
+        c = int(m.group(5)) * (1 if m.group(4) == "+" else -1)
+        root = question.answer
+        assert a * root**2 + b * root + c == 0
+
+    def test_the_tangent_is_the_derivative_wearing_words(self):
+        from mpeqs import calculus as mc
+
+        for question in self._questions("tangent_slope"):
+            m = re.search(r"y = (\d+)x\^2 \+ (-?\d+)x.*?x = (-?\d+)", question.text)
+            c2, c1, at = (int(g) for g in m.groups())
+            assert question.answer == mc.grad(f"{c2}*x**2 + {c1}*x", at)
+
+
+class TestPhysicsExtensions:
+    def _questions(self, group):
+        return [q for q in build(per_group=3, domains=["physics"])
+                if q.group == group]
+
+    def test_free_fall_round_trips_through_the_stated_formula(self):
+        for question in self._questions("free_fall"):
+            m = re.search(r"falls ([\d.]+) metres", question.text)
+            height = Fraction(m.group(1))
+            g = Fraction(981, 100)
+            # h = g*t^2/2 with the graded t must reproduce the stated height.
+            assert g * question.answer**2 / 2 == height
+
+    def test_acceleration_from_the_stated_figures(self):
+        for question in self._questions("acceleration"):
+            u, a, t = [int(n) for n in re.findall(r"\d+", question.text)][:3]
+            assert question.answer == u + a * t
+
+    def test_kinetic_energy_from_the_stated_figures(self):
+        for question in self._questions("kinetic_energy"):
+            m, v = [int(n) for n in re.findall(r"\d+", question.text)][:2]
+            assert question.answer == Fraction(m * v * v, 2)
