@@ -26,6 +26,7 @@
         .vote-no  { background: #f5c6c2; border: 1px solid #c0392b; color: #7b1f16; }
         .vote-lenses { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: #52514e; }
         .probe-kind { font-size: 12px; color: #7a7975; margin: 2px 0 4px; font-style: italic; }
+        .hint-item { border-style: dashed; background: #fbfaf7; }
         .step h3, .final-answer h3, .similar-item h3 { margin-top: 0; }
         #container { display: flex; flex-wrap: wrap; gap: 20px; }
         #left-panel { flex: 1 1 380px; min-width: 0; }
@@ -86,6 +87,12 @@
        knowledge graph for exploring related questions and answers.</p>
 
     <input type="text" id="query" placeholder="e.g., What is the capital of France?">
+    <input type="text" id="session" placeholder="session (optional)"
+           title="Runs in the same session share memory; sessions are isolated from each other"
+           style="width: 150px;">
+    <label style="font-size: 12px; color: #52514e;">
+      <input type="checkbox" id="hints"> hints from other sessions
+    </label>
     <select id="mode" title="How hard to work on the answer">
       <option value="reason">Reason — one run</option>
       <option value="explore">Explore — each part answered on its own</option>
@@ -110,6 +117,7 @@
                 <div id="answer"></div>
             </div>
             <div id="similar"></div>
+            <div id="hints-box" hidden></div>
         </div>
         <div id="graph"></div>
     </div>
@@ -128,6 +136,7 @@
         const errors = document.getElementById('errors');
         const status = document.getElementById('status');
         const sums = document.getElementById('sums');
+        document.getElementById('session').value = localStorage.getItem('lkg-session') || '';
         const seenSums = new Set();
         const graphContainer = document.getElementById('graph');
 
@@ -308,6 +317,32 @@
             edges.add(exactEdges);
             attachPending();
             network.fit();
+        }
+
+        function showHints(items) {
+            const box = document.getElementById('hints-box');
+            box.innerHTML = '';
+            if (!items || !items.length) { box.hidden = true; return; }
+            box.hidden = false;
+            const h = document.createElement('h2');
+            h.textContent = 'Hints from other sessions';
+            box.appendChild(h);
+            const note = document.createElement('p');
+            note.className = 'probe-kind';
+            note.textContent = 'Read-only: these belong to other sessions and are not part of this one.';
+            box.appendChild(note);
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'similar-item hint-item';
+                const head = document.createElement('h3');
+                head.textContent = `[${item.session || 'default'}] `
+                                 + `(Similarity: ${item.similarity.toFixed(4)})`;
+                const p = document.createElement('p');
+                p.textContent = item.text;
+                div.appendChild(head);
+                div.appendChild(p);
+                box.appendChild(div);
+            });
         }
 
         function showVote(data) {
@@ -564,8 +599,12 @@
             status.textContent = 'Connecting to the model…';
 
             const mode = document.getElementById('mode').value;
+            const session = document.getElementById('session').value.trim();
+            localStorage.setItem('lkg-session', session);
+            const hints = document.getElementById('hints').checked ? '&hints=1' : '';
             eventSource = new EventSource(
-                `/query?query=${encodeURIComponent(userQuery)}&mode=${mode}`);
+                `/query?query=${encodeURIComponent(userQuery)}&mode=${mode}`
+                + `&session=${encodeURIComponent(session)}${hints}`);
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -643,6 +682,11 @@
                         chip.title = `Evaluated exactly at step ${data.step}`;
                         sums.appendChild(chip);
                     }
+
+                } else if (data.type === 'hints') {
+                    // From OTHER sessions, opt-in, and drawn apart: a hint must
+                    // never be mistakable for this session's own memory.
+                    showHints(data.items);
 
                 } else if (data.type === 'similar') {
                     similar.innerHTML = '';
