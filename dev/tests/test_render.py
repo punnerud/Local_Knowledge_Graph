@@ -34,6 +34,7 @@ class LiveServer:
         chat = ScriptedChat(script, repeat_last=repeat_last, delay=delay)
         app_module.app.config["BACKENDS_FACTORY"] = lambda: (chat, DeterministicEmbedding(dim))
         app_module.app.config["DB_PATH"] = str(tmp_path / "render.db")
+        app_module.app.config["GRAPH_DB_PATH"] = str(tmp_path / "graph.db")
         self.port = free_port()
         self._server = make_server("127.0.0.1", self.port, app_module.app, threaded=True)
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)

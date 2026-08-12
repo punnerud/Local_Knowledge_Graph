@@ -107,6 +107,9 @@ def client(tmp_path):
     import mpe_lkg.app as app_module
 
     app_module.app.config["DB_PATH"] = str(tmp_path / "app.db")
+    # Without this the sessions endpoint records into the repo root -- the
+    # stray-file mistake this project has already committed once.
+    app_module.app.config["GRAPH_DB_PATH"] = str(tmp_path / "graph.db")
     app_module.app.config["BACKENDS_FACTORY"] = lambda: (
         ScriptedChat(normal_script(4), repeat_last=True), DeterministicEmbedding(24))
     app_module.JOBS = app_module.Registry()

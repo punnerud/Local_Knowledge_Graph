@@ -17,6 +17,7 @@ import time
 from flask import Flask, Response, jsonify, render_template, request
 
 from . import backends, rdf
+from .graphdb import GraphDB
 from .jobs import Job, Registry
 from .reasoning import explore, reason, settle
 from .store import EmbeddingStore
@@ -163,8 +164,24 @@ def favicon():
 JOBS = Registry()
 
 
+GRAPH_DB = "knowledge.graph.db"
+
+
+def _record(job) -> None:
+    """One finished job into the graph tables. Failures are logged, not fatal:
+    the answer has already been delivered, and recording is bookkeeping."""
+    try:
+        graph = GraphDB(app.config.get("GRAPH_DB_PATH", GRAPH_DB))
+        try:
+            graph.record(job)
+        finally:
+            graph.close()
+    except Exception:  # noqa: BLE001
+        app.logger.exception("could not record run %s", job.id)
+
+
 def _job_events(user_query: str, store_path: str, mode: str = "reason",
-                session: str = ""):
+                session: str = "", job=None):
     """The reasoning events for a headless run, with its own backends and store."""
     chat, embedder = app.config.get("BACKENDS_FACTORY", make_backends)()
     store = EmbeddingStore(store_path)
@@ -184,6 +201,8 @@ def _job_events(user_query: str, store_path: str, mode: str = "reason",
                               decompose=decompose)
     finally:
         store.close()
+        if job is not None:
+            _record(job)
 
 
 @app.route("/jobs", methods=["GET", "POST"])
@@ -209,7 +228,8 @@ def jobs():
     job.mode = mode
     job.session = session
     JOBS.add(job)
-    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH), mode, session))
+    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH), mode,
+                          session, job=job))
     # 202: accepted and still running. The Location header is where to look.
     return jsonify(job.status()), 202, {"Location": f"/jobs/{job.id}"}
 
@@ -218,9 +238,19 @@ def jobs():
 def sessions():
     store = EmbeddingStore(app.config.get("DB_PATH", DB_PATH))
     try:
-        return jsonify({"sessions": store.sessions()})
+        listed = store.sessions()
     finally:
         store.close()
+    try:
+        graph = GraphDB(app.config.get("GRAPH_DB_PATH", GRAPH_DB))
+        try:
+            for entry in listed:
+                entry.update(graph.session_stats(entry["name"]))
+        finally:
+            graph.close()
+    except Exception:  # noqa: BLE001 -- stats are additive, never blocking
+        app.logger.exception("could not read graph stats")
+    return jsonify({"sessions": listed})
 
 
 @app.route("/sessions/<name>", methods=["DELETE"])

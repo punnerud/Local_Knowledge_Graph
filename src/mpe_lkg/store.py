@@ -1,4 +1,8 @@
-"""SQLite-backed embedding store with brute-force similarity search.
+"""MPEdb-backed embedding store with brute-force similarity search.
+
+The engine is mpedb, which speaks the sqlite3 DB-API and opens this project's
+existing embeddings.db files in place -- verified by test, not assumed -- so the
+swap changed an import and nothing a caller can see.
 
 This replaces the Annoy index the project used to carry. An approximate
 nearest-neighbour index earns its keep somewhere around a hundred thousand vectors;
@@ -15,8 +19,7 @@ negative and was displayed to four decimal places as if it meant something.
 
 from __future__ import annotations
 
-import sqlite3
-
+import mpedb
 import numpy as np
 
 DEFAULT_PATH = "embeddings.db"
@@ -39,7 +42,7 @@ class EmbeddingStore:
         self.path = path
         # The rows are produced inside a streaming response, which Flask may run on
         # a different thread than the one that opened the connection.
-        self.conn = sqlite3.connect(path, check_same_thread=False)
+        self.conn = mpedb.connect(path, check_same_thread=False)
         self.conn.execute(SCHEMA)
         self._migrate()
         self.conn.commit()
@@ -59,15 +62,26 @@ class EmbeddingStore:
         vector from a 384-dimensional one, so switching embedding model silently
         corrupted every search against the old rows.
         """
-        existing = {row[1] for row in self.conn.execute("PRAGMA table_info(embeddings)")}
+        # cursor.description, not PRAGMA table_info: the pragma is a sqlite3
+        # extension that mpedb answers with nothing, and an empty answer made
+        # this method try to re-add every column. The DB-API way works on both.
+        cursor = self.conn.execute("SELECT * FROM embeddings LIMIT 0")
+        existing = {column[0] for column in cursor.description}
+        # Each ADD COLUMN is followed by an explicit backfill. sqlite3 writes
+        # the DEFAULT into existing rows; mpedb leaves them NULL, so without the
+        # UPDATE every pre-migration row silently vanishes from queries that
+        # filter on the new column -- which is all of them.
         if "dim" not in existing:
             self.conn.execute("ALTER TABLE embeddings ADD COLUMN dim INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("UPDATE embeddings SET dim = 0 WHERE dim IS NULL")
         if "model" not in existing:
             self.conn.execute("ALTER TABLE embeddings ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("UPDATE embeddings SET model = '' WHERE model IS NULL")
         if "session" not in existing:
             # Rows from before sessions existed land in the default session,
             # which is where a caller that never names one still works.
             self.conn.execute("ALTER TABLE embeddings ADD COLUMN session TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("UPDATE embeddings SET session = '' WHERE session IS NULL")
 
     def close(self) -> None:
         self.conn.close()
@@ -83,17 +97,20 @@ class EmbeddingStore:
     def add(self, text: str, embedding: np.ndarray, *, is_question: bool = False,
             model: str = "", session: str = "") -> int:
         vector = np.asarray(embedding, dtype=np.float32).ravel()
-        cursor = self.conn.execute(
+        # RETURNING, not lastrowid: mpedb's file engine reports lastrowid as
+        # None (the in-memory engine reports it fine, which is how this hid
+        # from the first probes). RETURNING is answered by both.
+        row = self.conn.execute(
             "INSERT INTO embeddings (text, embedding, is_question, dim, model, session)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (text, sqlite3.Binary(vector.tobytes()), int(is_question),
+            " VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+            (text, vector.tobytes(), int(is_question),
              int(vector.size), model, session or self.default_session),
-        )
+        ).fetchone()
         self.conn.commit()
         # Both this session's matrix and the every-other-session matrices are
         # stale now; dropping by prefix is simpler than tracking which.
         self._cache.clear()
-        return int(cursor.lastrowid)
+        return int(row[0])
 
     def _matrix(self, dim: int, model: str, session: str | None = "",
                 exclude: str | None = None) -> tuple[np.ndarray, list]:
