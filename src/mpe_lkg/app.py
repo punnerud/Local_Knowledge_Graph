@@ -163,10 +163,12 @@ def favicon():
 JOBS = Registry()
 
 
-def _job_events(user_query: str, store_path: str, mode: str = "reason"):
+def _job_events(user_query: str, store_path: str, mode: str = "reason",
+                session: str = ""):
     """The reasoning events for a headless run, with its own backends and store."""
     chat, embedder = app.config.get("BACKENDS_FACTORY", make_backends)()
     store = EmbeddingStore(store_path)
+    store.default_session = session
     decompose = int(os.environ.get("LKG_DECOMPOSE", "8"))
     try:
         if mode == "settle":
@@ -202,12 +204,33 @@ def jobs():
         return jsonify({"error": f"unknown mode {mode!r}",
                         "modes": ["reason", "explore", "settle"]}), 400
 
+    session = str((payload or {}).get("session", "")).strip()
     job = Job(user_query)
     job.mode = mode
+    job.session = session
     JOBS.add(job)
-    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH), mode))
+    job.start(_job_events(user_query, app.config.get("DB_PATH", DB_PATH), mode, session))
     # 202: accepted and still running. The Location header is where to look.
     return jsonify(job.status()), 202, {"Location": f"/jobs/{job.id}"}
+
+
+@app.route("/sessions", methods=["GET"])
+def sessions():
+    store = EmbeddingStore(app.config.get("DB_PATH", DB_PATH))
+    try:
+        return jsonify({"sessions": store.sessions()})
+    finally:
+        store.close()
+
+
+@app.route("/sessions/<name>", methods=["DELETE"])
+def forget_session(name: str):
+    """Forget one session's memory. Every other session is untouched."""
+    store = EmbeddingStore(app.config.get("DB_PATH", DB_PATH))
+    try:
+        return jsonify({"forgot": name, "rows": store.forget(name)})
+    finally:
+        store.close()
 
 
 @app.route("/jobs/<job_id>", methods=["GET", "DELETE"])
@@ -234,7 +257,7 @@ def job_rdf(job_id: str):
     render = rdf.to_ntriples if wants_nt else rdf.to_turtle
     body = render(
         job.id, job.question,
-        graph=job.graph(), answer=job.answer,
+        graph=job.graph(), answer=job.answer, session=job.session,
         steps=job.of_type("step"),
         conversions=[e["result"] for e in job.of_type("convert")],
         sums=[f"{e['expression']} = {e['value']}" for e in job.of_type("calc")],
@@ -302,6 +325,12 @@ def query():
     mode = mode.strip().lower()
     if mode not in {"reason", "explore", "settle"}:
         mode = "reason"
+    if request.method == "POST":
+        session = str((request.json or {}).get("session", "")).strip()
+        wants_hints = bool((request.json or {}).get("hints"))
+    else:
+        session = request.args.get("session", "").strip()
+        wants_hints = request.args.get("hints", "").lower() in {"1", "true", "yes"}
 
     if not user_query:
         return jsonify({"error": "No query provided"}), 400
@@ -317,6 +346,7 @@ def query():
         and no data, which is indistinguishable from the app being broken.
         """
         store = EmbeddingStore(app.config.get("DB_PATH", DB_PATH))
+        store.default_session = session
         events: queue.Queue = queue.Queue()
         sentinel = object()
 
@@ -334,6 +364,7 @@ def query():
                     query_vector,
                     is_question=True,
                     model=embedder.describe().get("model", ""),
+                    session=session,
                 )
                 runner = {"explore": explore, "settle": settle}.get(mode, reason)
                 for event in runner(user_query, chat=chat, embedder=embedder, store=store):
@@ -345,8 +376,19 @@ def query():
                     top_k=5,
                     model=embedder.describe().get("model", ""),
                     exclude_ids={query_id},
+                    session=session,
                 )
                 events.put({"type": "similar", "items": similar, "store_size": store.count()})
+                if wants_hints:
+                    # A separate event for a separate kind of thing: hints come
+                    # from OTHER sessions, are read-only, and never mix into the
+                    # session's own related list. Sent only when asked for.
+                    hints = store.find_hints(
+                        query_vector,
+                        exclude_session=session,
+                        model=embedder.describe().get("model", ""),
+                    )
+                    events.put({"type": "hints", "items": hints})
             except backends.BackendError as exc:
                 events.put({"type": "error", "message": str(exc), "hint": exc.hint})
             except Exception as exc:  # noqa: BLE001

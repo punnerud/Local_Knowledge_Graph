@@ -120,6 +120,7 @@ def run_triples(
     steps: list[dict] | None = None,
     conversions: list[str] | None = None,
     sums: list[str] | None = None,
+    session: str = "",
     findings: list[dict] | None = None,
     votes: list[dict] | None = None,
     agreement: dict | None = None,
@@ -134,6 +135,8 @@ def run_triples(
     yield triple(run, _p("question"), literal(question))
     if answer:
         yield triple(run, _p("answer"), literal(answer))
+    if session:
+        yield triple(run, _p("session"), literal(session))
 
     for step in steps or []:
         number = step.get("step") or step.get("number") or 0

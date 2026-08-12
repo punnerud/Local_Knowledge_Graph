@@ -44,6 +44,7 @@ class Job:
         # poller knows what it is waiting for -- a settle run is minutes, not
         # seconds, and a caller that cannot tell them apart will time out on one.
         self.mode = "reason"
+        self.session = ""
         self.created = time.time()
         self.finished: float | None = None
         self.events: list[dict] = []
@@ -86,6 +87,7 @@ class Job:
             "id": self.id,
             "question": self.question,
             "mode": self.mode,
+            "session": self.session,
             "state": self.state,
             "steps": len(self.of_type("step")),
             "events": len(self.snapshot()),

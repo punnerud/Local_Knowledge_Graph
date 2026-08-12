@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS embeddings (
     embedding BLOB NOT NULL,
     is_question INTEGER NOT NULL DEFAULT 0,
     dim INTEGER NOT NULL,
-    model TEXT NOT NULL DEFAULT ''
+    model TEXT NOT NULL DEFAULT '',
+    session TEXT NOT NULL DEFAULT ''
 )
 """
 
@@ -42,8 +43,14 @@ class EmbeddingStore:
         self.conn.execute(SCHEMA)
         self._migrate()
         self.conn.commit()
-        # (dim, model) -> (matrix, metadata). Dropped on write.
-        self._cache: dict[tuple[int, str], tuple[np.ndarray, list]] = {}
+        # Where rows land when the caller does not say. The reasoning loop
+        # stores each step without knowing about sessions, and each request
+        # holds its own store instance -- so the route sets this once and every
+        # write inside the run inherits it, without threading a parameter
+        # through reason(), explore() and settle().
+        self.default_session = ""
+        # (dim, model, session, exclude) -> (matrix, metadata). Dropped on write.
+        self._cache: dict[tuple, tuple[np.ndarray, list]] = {}
 
     def _migrate(self) -> None:
         """Add the columns that older databases from this project lack.
@@ -57,6 +64,10 @@ class EmbeddingStore:
             self.conn.execute("ALTER TABLE embeddings ADD COLUMN dim INTEGER NOT NULL DEFAULT 0")
         if "model" not in existing:
             self.conn.execute("ALTER TABLE embeddings ADD COLUMN model TEXT NOT NULL DEFAULT ''")
+        if "session" not in existing:
+            # Rows from before sessions existed land in the default session,
+            # which is where a caller that never names one still works.
+            self.conn.execute("ALTER TABLE embeddings ADD COLUMN session TEXT NOT NULL DEFAULT ''")
 
     def close(self) -> None:
         self.conn.close()
@@ -69,17 +80,23 @@ class EmbeddingStore:
     def count(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0])
 
-    def add(self, text: str, embedding: np.ndarray, *, is_question: bool = False, model: str = "") -> int:
+    def add(self, text: str, embedding: np.ndarray, *, is_question: bool = False,
+            model: str = "", session: str = "") -> int:
         vector = np.asarray(embedding, dtype=np.float32).ravel()
         cursor = self.conn.execute(
-            "INSERT INTO embeddings (text, embedding, is_question, dim, model) VALUES (?, ?, ?, ?, ?)",
-            (text, sqlite3.Binary(vector.tobytes()), int(is_question), int(vector.size), model),
+            "INSERT INTO embeddings (text, embedding, is_question, dim, model, session)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (text, sqlite3.Binary(vector.tobytes()), int(is_question),
+             int(vector.size), model, session or self.default_session),
         )
         self.conn.commit()
-        self._cache.pop((int(vector.size), model), None)
+        # Both this session's matrix and the every-other-session matrices are
+        # stale now; dropping by prefix is simpler than tracking which.
+        self._cache.clear()
         return int(cursor.lastrowid)
 
-    def _matrix(self, dim: int, model: str) -> tuple[np.ndarray, list]:
+    def _matrix(self, dim: int, model: str, session: str | None = "",
+                exclude: str | None = None) -> tuple[np.ndarray, list]:
         """Rows of the given shape as one contiguous matrix, cached in memory.
 
         Reading and unpacking every blob out of SQLite on each query is what makes a
@@ -87,15 +104,21 @@ class EmbeddingStore:
         thousand vectors takes about three milliseconds; decoding them from the
         database each time does not.
         """
-        key = (dim, model)
+        key = (dim, model, session, exclude)
         if key in self._cache:
             return self._cache[key]
 
         params: list = [dim]
-        sql = "SELECT id, text, embedding, is_question FROM embeddings WHERE dim = ?"
+        sql = "SELECT id, text, embedding, is_question, session FROM embeddings WHERE dim = ?"
         if model:
             sql += " AND model = ?"
             params.append(model)
+        if session is not None:
+            sql += " AND session = ?"
+            params.append(session)
+        if exclude is not None:
+            sql += " AND session != ?"
+            params.append(exclude)
         rows = list(self.conn.execute(sql, params))
 
         if rows:
@@ -105,7 +128,7 @@ class EmbeddingStore:
         else:
             matrix = np.zeros((0, dim), dtype=np.float32)
 
-        meta = [(int(r[0]), r[1], bool(r[3])) for r in rows]
+        meta = [(int(r[0]), r[1], bool(r[3]), r[4]) for r in rows]
         self._cache[key] = (matrix, meta)
         return matrix, meta
 
@@ -116,6 +139,7 @@ class EmbeddingStore:
         top_k: int = 5,
         model: str = "",
         exclude_ids: set[int] | None = None,
+        session: str = "",
     ) -> list[dict]:
         """Exact cosine nearest neighbours, restricted to compatible vectors.
 
@@ -134,13 +158,14 @@ class EmbeddingStore:
         vector = vector / query_norm
         exclude_ids = exclude_ids or set()
 
-        matrix, meta = self._matrix(int(vector.size), model)
+        matrix, meta = self._matrix(int(vector.size), model,
+                                    session=session or self.default_session)
         if not len(matrix):
             return []
 
         scores = matrix @ vector
         if exclude_ids:
-            keep = np.array([row_id not in exclude_ids for row_id, _, _ in meta])
+            keep = np.array([row_id not in exclude_ids for row_id, _, _, _ in meta])
             scores = np.where(keep, scores, -np.inf)
             available = int(keep.sum())
         else:
@@ -162,3 +187,55 @@ class EmbeddingStore:
             }
             for i in order
         ]
+
+    def find_hints(self, query: np.ndarray, *, exclude_session: str,
+                   top_k: int = 3, model: str = "") -> list[dict]:
+        """Related rows from OTHER sessions, each labelled with its session.
+
+        A separate method rather than a flag on find_similar, deliberately:
+        hints are opt-in, read-only, and must never be mistakable for the
+        session's own memory. A shared code path with a boolean would make
+        that a matter of call-site discipline; two methods make it a type of
+        result. Nothing here writes.
+        """
+        vector = np.asarray(query, dtype=np.float32).ravel()
+        norm = float(np.linalg.norm(vector))
+        if norm == 0.0:
+            return []
+        vector = vector / norm
+
+        matrix, meta = self._matrix(int(vector.size), model,
+                                    session=None, exclude=exclude_session)
+        if not len(matrix):
+            return []
+        scores = matrix @ vector
+        k = min(top_k, len(scores))
+        candidates = np.argpartition(-scores, k - 1)[:k]
+        order = candidates[np.argsort(-scores[candidates])]
+        return [
+            {
+                "id": meta[i][0],
+                "text": meta[i][1],
+                "similarity": float(scores[i]),
+                "is_question": meta[i][2],
+                "session": meta[i][3],
+            }
+            for i in order
+        ]
+
+    def sessions(self) -> list[dict]:
+        """Every session with how much it remembers."""
+        rows = self.conn.execute(
+            "SELECT session, COUNT(*), SUM(is_question) FROM embeddings"
+            " GROUP BY session ORDER BY session"
+        )
+        return [{"name": r[0], "rows": int(r[1]), "questions": int(r[2] or 0)}
+                for r in rows]
+
+    def forget(self, session: str) -> int:
+        """Delete one session's memory and leave every other alone."""
+        cursor = self.conn.execute(
+            "DELETE FROM embeddings WHERE session = ?", (session,))
+        self.conn.commit()
+        self._cache.clear()
+        return int(cursor.rowcount)
