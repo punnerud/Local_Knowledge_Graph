@@ -21,6 +21,7 @@ from .arithmetic import (
     correction,
     evaluate,
     product_unit,
+    question_conversion,
     readable,
     restate,
 )
@@ -738,6 +739,19 @@ def reason(
     labelled: list[tuple[str, Fraction]] = []
     unsupported: list[str] = []
     conversions = 0
+    # A question that is itself one conversion is settled before the model says
+    # anything: the exact value goes into the facts the synthesis prefers and
+    # the selection can offer, and the reasoning runs as usual around an anchor
+    # instead of a hope. Measured need: asked seconds-in-N-weeks twelve times,
+    # the model asserted a bare unchecked number in eight of them.
+    if check_arithmetic:
+        upfront = question_conversion(prompt)
+        if upfront is not None:
+            text, exact, label = upfront
+            converted.append(text)
+            labelled.append((label, exact))
+            conversions += 1
+            yield {"type": "convert", "step": 0, "request": prompt[:80], "result": text}
     arithmetic_retries = 0
     total_thinking_time = 0.0
     final_answer: str | None = None
@@ -1026,6 +1040,11 @@ def reason(
                     chat, prompt, [step_texts[i] for i in spine], thread_sums, converted
                 )
                 if synthesised:
+                    if check_arithmetic:
+                        synthesised, repaired = repair_sums(synthesised)
+                        for statement in repaired:
+                            sums_corrected += 1
+                            yield {"type": "repaired", "statement": statement}
                     final_answer = synthesised
                     unsupported = unsupported_numbers(synthesised, labelled)
             total_thinking_time += time.time() - started
@@ -1486,6 +1505,35 @@ def vote(chat, question: str, first: str, second: str, voters: int = VOTERS) -> 
         "agreed": bool(ballots) and agree * 2 > len(ballots),
         "about": against[0] if against else "the answer itself",
     }
+
+
+def repair_sums(answer: str) -> tuple[str, list[str]]:
+    """Fix wrong arithmetic in a final answer, deterministically.
+
+    The step gate retries a step whose sums are wrong, but the SYNTHESIS was
+    never checked -- and it does sums. Measured: a final answer read "378 x
+    86,400 = 32,356,800 seconds", right expression, wrong product, and nothing
+    looked. The claim regex catches exactly this shape, the evaluator knows the
+    exact value, so the repair is a substitution and not a rewrite: every
+    rendering of the wrong number is replaced with the exact one, digit
+    boundaries respected so 42 inside 1421 is left alone.
+    """
+    wrong = arithmetic_errors(answer)
+    repaired = []
+    for claim in wrong:
+        exact = readable(claim.exact)
+        variants = {claim.stated}
+        if claim.stated.lstrip("-").isdigit():
+            variants.add(f"{int(claim.stated):,}")
+        for variant in variants:
+            # The lookahead blocks only a CONTINUATION of the number -- ".5" or
+            # ",000" -- not a sentence-ending period. The first version blocked
+            # any ".", so "the answer is 32,356,800." kept its wrong number
+            # while the equation beside it was fixed.
+            answer = re.sub(
+                rf"(?<![\d.]){re.escape(variant)}(?![.,]?\d)", exact, answer)
+        repaired.append(f"{claim.expression} = {exact}, stated as {claim.stated}")
+    return answer, repaired
 
 
 def _final(answer: str, rounds: int, started: float, *, agreed: bool) -> dict:

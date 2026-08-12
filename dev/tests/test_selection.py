@@ -470,3 +470,89 @@ class TestBreadthTapers:
         assert widths == [5, 4, 3, 2]
         assert math.prod(widths) == 120
         assert breadth_at(99, 5) == 2
+
+
+class TestUpfrontConversion:
+    """A question that IS one conversion is settled before the model speaks.
+
+    Measured need, then measured effect: asked seconds-in-N-weeks twelve times,
+    the model asserted a bare unchecked number in eight -- nothing for any gate
+    to hold. With the question's own conversion settled up front and placed in
+    the facts the synthesis prefers, the same twelve questions went 4/12 to
+    12/12, with zero repairs needed.
+    """
+
+    def test_a_pure_conversion_question_parses(self):
+        from mpe_lkg.arithmetic import question_conversion
+
+        text, value, label = question_conversion(
+            "How many seconds are there in 82 weeks?")
+        assert str(value) == "49593600"
+        assert "82 week" in text and "second" in label
+
+    @pytest.mark.parametrize("question", [
+        "What is the capital of France?",
+        "How many jars remain?",
+        "Why is the sky blue?",
+        "How many whole times does 816 go into 802550?",
+    ])
+    def test_anything_else_is_left_alone(self, question):
+        from mpe_lkg.arithmetic import question_conversion
+
+        assert question_conversion(question) is None
+
+    def test_the_anchor_arrives_as_a_step_zero_convert_event(self):
+        import json
+
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        script = [json.dumps({"title": "T", "content": "C", "calc": "",
+                              "calc_of": "", "convert": "",
+                              "next_action": "final_answer"}), "An answer."]
+        events = list(reason("How many seconds are there in 8 weeks?",
+                             chat=ScriptedChat(script),
+                             embedder=DeterministicEmbedding(24)))
+        anchor = next(e for e in events if e["type"] == "convert")
+        assert anchor["step"] == 0
+        assert "4,838,400" in anchor["result"]
+
+
+class TestRepairSums:
+    """The synthesis does sums, and nothing checked them.
+
+    Measured: a final answer read "378 x 86,400 = 32,356,800 seconds" -- right
+    expression, wrong product -- and the prose gate only ever ran on steps. The
+    repair is a substitution, not a rewrite: the evaluator knows the exact
+    value, so every rendering of the wrong number is replaced with it. When it
+    fires it decides: 2 of 2 repaired runs came out correct.
+    """
+
+    def test_the_measured_case_is_repaired_everywhere_it_appears(self):
+        from mpe_lkg.reasoning import repair_sums
+
+        answer, repaired = repair_sums(
+            "so 378 × 86,400 = 32,356,800 seconds. The answer is 32,356,800.")
+        assert "32,659,200 seconds" in answer
+        assert answer.endswith("32,659,200.")
+        assert "32,356,800" not in answer
+        assert len(repaired) == 1
+
+    def test_digit_boundaries_are_respected(self):
+        from mpe_lkg.reasoning import repair_sums
+
+        answer, _ = repair_sums("Note 1.42 stays, though 2*21 = 41 is wrong.")
+        assert "1.42" in answer, "a decimal sharing digits must not be touched"
+        assert "2*21 = 42" in answer.replace("= 42", "= 42")
+
+    def test_a_correct_answer_is_untouched(self):
+        from mpe_lkg.reasoning import repair_sums
+
+        text = "14 * 1440 = 20,160 minutes, so the answer is 20,160."
+        assert repair_sums(text) == (text, [])
+
+    def test_prose_without_claims_is_untouched(self):
+        from mpe_lkg.reasoning import repair_sums
+
+        text = "The capital of France is Paris, established over 2000 years ago."
+        assert repair_sums(text) == (text, [])

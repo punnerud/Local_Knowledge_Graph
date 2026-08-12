@@ -340,3 +340,33 @@ def product_unit(text: str) -> str:
         for base, power in _dimensions(si).items():
             total[base] = total.get(base, 0) + power
     return _render({k: v for k, v in total.items() if v})
+
+
+# A question that IS one conversion: "How many seconds are there in 82 weeks?"
+QUESTION_CONVERSION = re.compile(
+    r"how\s+(?:many|much)\s+(?P<target>[A-Za-z_]+)\s+(?:is|are)\s+(?:there\s+)?in\s+"
+    r"(?P<value>-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?)\s*(?P<source>[A-Za-z_]+)\s*\??",
+    re.IGNORECASE,
+)
+
+
+def question_conversion(question: str):
+    """If the whole question is a single unit conversion, settle it up front.
+
+    Measured, and the reason this exists: on twelve seconds-in-N-weeks
+    questions the model asserted a bare number eight times -- "There are
+    1,612,800 seconds", no expression, no calc, no convert -- and a bare
+    assertion gives every gate in the pipeline nothing to hold on to. When the
+    question itself parses as one conversion, the exact value can exist BEFORE
+    the first model call, and the run starts anchored instead of hoping the
+    model asks.
+
+    Returns the same (text, value, label) as ``convert``, or None when the
+    question is not a plain conversion -- which is almost every question, and
+    the reason this stays a narrow shape rather than a router.
+    """
+    match = QUESTION_CONVERSION.search(_normalise(str(question or "")))
+    if not match:
+        return None
+    return convert(f"{match.group('value')} {match.group('source')} "
+                   f"to {match.group('target')}")
