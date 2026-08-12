@@ -44,6 +44,7 @@ QWEN = "docs/claims/battery_20260811_qwen3.json"
 QWEN_SELECT = "docs/claims/battery_555_qwen3_select.json"
 QWEN_REPLICATION = "docs/claims/battery_555_qwen3.json"
 LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
+FULL_BATTERY = "docs/claims/battery_full_20260811_qwen3.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -448,6 +449,40 @@ FILE_CHECKS = [
         0.80,
         0.15,
         "answering by selection costs no accuracy on qwen3",
+    ),
+    # --- The full battery: all four domains, all three grading modes ---
+    (
+        FULL_BATTERY,
+        lambda d: d["correct_rate"],
+        0.89,
+        0.12,
+        "qwen3 answers about nine in ten of the full battery's gradeable questions",
+    ),
+    (
+        FULL_BATTERY,
+        # The knowledge-edge probe as a battery, and it behaved exactly as
+        # designed: steady on facts broad enough that any grounded model holds
+        # them, UNSTEADY on places assembled from an RNG -- where a steady
+        # answer would be manufactured confidence.
+        lambda d: float(d["consistency"]["per_group"]["anchored"]["steady"]),
+        2.0,
+        1.0,
+        "anchored facts are held steadily",
+    ),
+    (
+        FULL_BATTERY,
+        lambda d: float(d["consistency"]["per_group"]["invented"]["steady"]),
+        0.0,
+        1.0,
+        "and invented places are not -- the honest signal, pinned so it stays",
+    ),
+    (
+        FULL_BATTERY,
+        # Never mixed into correctness: the note travels with the data.
+        lambda d: 1.0 if "invisible" in d["consistency"]["note"] else 0.0,
+        1.0,
+        0.001,
+        "the consistency caveat is attached to the data itself",
     ),
     (
         QWEN_SELECT,
