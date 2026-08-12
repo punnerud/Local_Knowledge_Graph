@@ -25,3 +25,6 @@ build/
 spell.mpedb*
 *.mpedb
 *.mpedb.wlock
+
+# The graph tables the app records finished runs into.
+knowledge.graph.db*
