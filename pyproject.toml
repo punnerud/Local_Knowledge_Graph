@@ -42,7 +42,7 @@ dependencies = [
     # degrades to None on ImportError rather than crashing -- so an older mpeqs
     # would leave the conversions silently missing instead of failing loudly,
     # which is the worst way for a dependency floor to be wrong.
-    "mpeqs>=0.3.0",
+    "mpeqs>=0.4.0",
     # The store engine. A drop-in for sqlite3 that also opens existing
     # embeddings.db files in place -- probed before adoption, tested after --
     # plus the in-memory mode the run-graph tables use. Wheels cover the same

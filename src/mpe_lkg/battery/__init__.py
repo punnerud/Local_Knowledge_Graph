@@ -63,8 +63,13 @@ class Question:
         cleaned = said.replace(",", "").replace(" ", "").replace("_", "")
         if self.answer.denominator == 1:
             return str(self.answer.numerator) in cleaned
+        # 6 down to 2 decimal places. The top end matters as much as the
+        # bottom: a model that answered -42.666667 for -128/3 was MORE precise
+        # than the old 4-decimal ceiling, and was graded wrong for it. An
+        # answer must never fail for exceeding the grader's precision.
         exact = float(self.answer)
-        return any(f"{exact:.{p}f}".rstrip("0").rstrip(".") in cleaned for p in (4, 3, 2))
+        return any(f"{exact:.{p}f}".rstrip("0").rstrip(".") in cleaned
+                   for p in (6, 5, 4, 3, 2))
 
 
 Generator = Callable[[int, int], list[Question]]
@@ -128,4 +133,4 @@ def truth_table(questions: list[Question]) -> str:
 
 
 # Importing the domains registers them. At the bottom so the decorator exists.
-from . import arithmetic, consistency, logic, physics, units  # noqa: E402, F401
+from . import arithmetic, calculus, consistency, logic, physics, units  # noqa: E402, F401
