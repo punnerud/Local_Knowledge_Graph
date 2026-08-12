@@ -21,8 +21,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, default=None, help="default 5100")
     parser.add_argument("--debug", action="store_true", help="Flask debugger; not on a shared network")
     parser.add_argument(
-        "command", nargs="?", default="serve", choices=["serve", "doctor"],
-        help="serve (default) starts the web app; doctor reports what is missing",
+        "command", nargs="?", default="serve", choices=["serve", "doctor", "battery"],
+        help="serve (default) starts the web app; doctor reports what is missing; "
+             "battery runs the question battery against the installed model",
     )
     return parser
 
@@ -41,6 +42,14 @@ def doctor() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:]) if argv is None else list(argv)
+    # The battery has its own flags (--seed, --domains, ...), so it takes the
+    # rest of the line rather than sharing the server's parser.
+    if argv[:1] == ["battery"]:
+        from .battery.bench import main as battery_main
+
+        return battery_main(argv[1:])
+
     args = build_parser().parse_args(argv)
 
     if args.command == "doctor":

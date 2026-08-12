@@ -1,14 +1,13 @@
-"""Run the arithmetic battery through the model, with the gate on and off.
+"""Run the battery with the arithmetic gate on and off, and write both arms.
 
-The eval in eval.py measures reasoning across mixed question types, where
-arithmetic is one thread among several and the noise floor swamps it -- two runs
-of an identical configuration there differed by 28 points. This measures one
-thing only, on numbers no model has memorised, which is the setting where the
-gate either does something or does not.
+The runner and the grading live in ``mpe_lkg.battery.bench`` now; this script is
+the two-arm comparison harness around them. The eval in eval.py measures
+reasoning across mixed question types, where the noise floor is wide; this
+measures one thing at a time on numbers no model has memorised.
 
 Usage:
     python dev/scripts/battery_bench.py --per-group 2
-    python dev/scripts/battery_bench.py --per-group 2 --seed 99  # a fresh battery
+    python dev/scripts/battery_bench.py --per-group 2 --seed 99 --select
 """
 
 from __future__ import annotations
@@ -17,93 +16,15 @@ import argparse
 import json
 import pathlib
 import sys
-import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from battery import SEED, build  # noqa: E402
 
 from mpe_lkg import backends  # noqa: E402
-from mpe_lkg.reasoning import reason  # noqa: E402
+from mpe_lkg.battery.bench import run, summarise  # noqa: E402
 
-# Per seed, so a replication on a fresh battery cannot silently overwrite the
-# result it is meant to be checked against.
 OUT_DIR = pathlib.Path("docs/claims")
-
-
-def run_arm(questions, *, check_arithmetic: bool, decompose: int, budget: float,
-            select: bool = False, model: str = "") -> dict:
-    chat = backends.OllamaChat(model or backends.pick_chat_model())
-    embedder = backends.OllamaEmbedding("")
-    rows = []
-    for index, question in enumerate(questions, 1):
-        started = time.time()
-        answer, calcs, steps, error = "", [], 0, ""
-        try:
-            for event in reason(
-                question.text,
-                chat=chat,
-                embedder=embedder,
-                decompose=decompose,
-                max_steps=14,
-                check_arithmetic=check_arithmetic,
-                select_answer=select,
-                time_budget=budget,
-            ):
-                if event["type"] == "calc":
-                    calcs.append(f"{event['expression']} = {event['value']}")
-                elif event["type"] == "step":
-                    steps += 1
-                elif event["type"] == "final":
-                    answer = event["content"]
-                elif event["type"] == "error":
-                    error = event.get("message", "error")
-        except Exception as exc:  # noqa: BLE001 -- a crashed run is a result, not a stop
-            error = f"{type(exc).__name__}: {exc}"
-
-        correct = bool(answer) and question.matches(answer)
-        # Did the exact value ever get computed, whether or not it was then used?
-        # The distinction matters: those are two different failures with two
-        # different fixes.
-        settled = any(str(question.answer.numerator) in c.replace(",", "") for c in calcs)
-        rows.append({
-            "group": question.group,
-            "question": question.text,
-            "expected": str(question.answer),
-            "answer": answer,
-            "correct": correct,
-            "settled_exactly": settled,
-            "calcs": calcs,
-            "steps": steps,
-            "seconds": round(time.time() - started, 1),
-            "error": error,
-        })
-        mark = "." if correct else "x"
-        extra = " (computed but not used)" if settled and not correct else ""
-        print(f"  [{index:2d}/{len(questions)}] {mark}  {question.group:22s} "
-              f"{question.text[:44]}{extra}", flush=True)
-    return {"rows": rows}
-
-
-def summarise(rows: list[dict]) -> dict:
-    by_group: dict[str, dict] = {}
-    for row in rows:
-        bucket = by_group.setdefault(row["group"], {"n": 0, "correct": 0, "settled": 0})
-        bucket["n"] += 1
-        bucket["correct"] += int(row["correct"])
-        bucket["settled"] += int(row["settled_exactly"])
-    n = len(rows)
-    return {
-        "n": n,
-        "correct": sum(r["correct"] for r in rows),
-        "correct_rate": (sum(r["correct"] for r in rows) / n) if n else 0.0,
-        "settled_exactly": sum(r["settled_exactly"] for r in rows),
-        "computed_but_unused": sum(
-            1 for r in rows if r["settled_exactly"] and not r["correct"]),
-        "steps_mean": (sum(r["steps"] for r in rows) / n) if n else 0.0,
-        "errors": sum(1 for r in rows if r["error"]),
-        "per_group": by_group,
-    }
 
 
 def main() -> int:
@@ -126,25 +47,28 @@ def main() -> int:
             parser.error(f"no group {args.group!r}")
     print(f"battery: {len(questions)} questions, seed {args.seed}\n")
 
+    chat = backends.OllamaChat(args.model or backends.pick_chat_model())
+    embedder = backends.OllamaEmbedding("")
+
     results = {"model": args.model or "installed default"}
     for label, gate in (("gate_on", True), ("gate_off", False)):
         print(f"--- {label} ---")
-        rows = run_arm(questions, check_arithmetic=gate, decompose=args.decompose,
-                       budget=args.budget, select=args.select, model=args.model)["rows"]
+        rows = run(questions, chat=chat, embedder=embedder,
+                   check_arithmetic=gate, decompose=args.decompose,
+                   budget=args.budget, select=args.select)["rows"]
         results[label] = summarise(rows)
         results[label]["rows"] = rows
         print()
 
     on, off = results["gate_on"], results["gate_off"]
-    print(f"  gate on : {on['correct']}/{on['n']} ({on['correct_rate']*100:.0f}%)  "
+    print(f"  gate on : {on['correct']}/{on['n']} ({on['correct_rate'] * 100:.0f}%)  "
           f"settled exactly {on['settled_exactly']}/{on['n']}  "
           f"computed-but-unused {on['computed_but_unused']}")
-    print(f"  gate off: {off['correct']}/{off['n']} ({off['correct_rate']*100:.0f}%)")
+    print(f"  gate off: {off['correct']}/{off['n']} ({off['correct_rate'] * 100:.0f}%)")
 
+    # The arm goes in the filename: a --select run must never overwrite the
+    # baseline it is to be compared against. That nearly happened once.
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # The arm goes in the filename. It did not, so a --select run overwrote the
-    # baseline it was meant to be compared against -- the comparison would have
-    # been against itself, and looked like a null result.
     tag = args.model.split(":")[0].replace("/", "-") if args.model else "default"
     arm = "_select" if args.select else ""
     out = OUT_DIR / f"battery_{args.seed}_{tag}{arm}.json"
