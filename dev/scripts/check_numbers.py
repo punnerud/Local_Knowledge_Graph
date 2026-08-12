@@ -45,6 +45,7 @@ QWEN_SELECT = "docs/claims/battery_555_qwen3_select.json"
 QWEN_REPLICATION = "docs/claims/battery_555_qwen3.json"
 LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
 FULL_BATTERY = "docs/claims/battery_full_20260811_qwen3.json"
+PHYSICS = "docs/claims/battery_physics_20260811_qwen3.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -483,6 +484,16 @@ FILE_CHECKS = [
         1.0,
         0.001,
         "the consistency caveat is attached to the data itself",
+    ),
+    (
+        PHYSICS,
+        # Constants stated in the question, so the task is composition across
+        # units rather than recall -- the exact failure mode this project has
+        # built machinery for, and the machinery carries it.
+        lambda d: d["correct_rate"],
+        1.0,
+        0.25,
+        "physics composition with stated constants is answered nearly clean",
     ),
     (
         QWEN_SELECT,

@@ -146,3 +146,75 @@ class TestTextMode:
                      expect=("neither", "the same", "equal"))
         assert q.matches("They weigh the same.") is True
         assert q.matches("The lead, obviously.") is False
+
+
+class TestPhysics:
+    """Every answer re-derived from the question's own text.
+
+    The physics domain leans on constants, and the rule that makes it safe is
+    that every constant is STATED in the question -- so these tests parse the
+    figures back out of the text and recompute the answer from nothing else.
+    The very first version of this domain failed this test twice: both
+    mile-based answers were a factor of a thousand off, because MILE_KM is
+    already kilometres per mile and the generator multiplied by 1000 again.
+    A constant embedded twice is exactly the mistake this style of test exists
+    to catch before a model is ever graded against it.
+    """
+
+    def _numbers(self, text):
+        return [Fraction(n.replace(",", ""))
+                for n in re.findall(r"\d[\d,]*(?:\.\d+)?", text)]
+
+    @pytest.mark.parametrize("question",
+                             [q for q in build(per_group=3, domains=["physics"])
+                              if q.group == "light_travel"],
+                             ids=lambda q: q.text[60:90])
+    def test_light_travel_from_the_stated_figures(self, question):
+        speed, distance = self._numbers(question.text)[:2]
+        assert question.answer == distance * 1000 / speed
+
+    @pytest.mark.parametrize("question",
+                             [q for q in build(per_group=3, domains=["physics"])
+                              if q.group == "wind_distance"],
+                             ids=lambda q: q.text[30:55])
+    def test_wind_distance_from_the_stated_figures(self, question):
+        # "One mile" is spelled out, so the digits in the text are exactly
+        # speed, the mile factor and the hours.
+        speed, mile_km, hours = self._numbers(question.text)[:3]
+        assert question.answer == speed * hours * mile_km
+
+    @pytest.mark.parametrize("question",
+                             [q for q in build(per_group=3, domains=["physics"])
+                              if q.group == "around_earth"],
+                             ids=lambda q: q.text[50:70])
+    def test_around_earth_from_the_stated_figures(self, question):
+        circumference, speed = self._numbers(question.text)[:2]
+        assert question.answer == circumference / speed
+
+    @pytest.mark.parametrize("question",
+                             [q for q in build(per_group=3, domains=["physics"])
+                              if q.group == "speed_conversion"],
+                             ids=lambda q: q.text[17:35])
+    def test_speed_conversion_from_the_stated_figures(self, question):
+        speed, mile_km = self._numbers(question.text)[:2]
+        assert question.answer == speed * mile_km * 1000 / 3600
+
+    def test_no_question_asks_the_model_to_remember_a_constant(self):
+        """The rule that keeps physics inside the battery's discipline."""
+        for question in build(per_group=2, domains=["physics"]):
+            numbers = self._numbers(question.text)
+            assert len(numbers) >= 2, \
+                f"a constant is missing from the text: {question.text}"
+
+    def test_the_light_constants_give_plausible_magnitudes(self):
+        """Sanity anchors on the constants themselves, not on an RNG draw.
+
+        The first version waited for the Moon to be drawn and it never was at
+        that seed -- a test hoping the RNG cooperates tests the RNG.
+        """
+        from mpe_lkg.battery.physics import BODIES, LIGHT
+
+        seconds = {name: float(d * 1000 / LIGHT) for name, d in BODIES.items()}
+        assert 1 < seconds["the Moon"] < 2
+        assert 480 < seconds["the Sun"] < 520          # about eight minutes
+        assert 150 < seconds["Mars at its closest"] < 220
