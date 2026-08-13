@@ -71,9 +71,22 @@ STEP_SCHEMA = {
                            "different values identifies neither. Use only wording "
                            "drawn from this question. Empty string if no calculation.",
         },
+        # Same contract as calc and convert: name it, never work it out. The
+        # calculus battery measured the model dropping a chain factor and
+        # reading a tangent at the wrong point -- the guessed-instead-of-asked
+        # failure this field closes for derivatives.
+        "derivative": {
+            "type": "string",
+            "description": "A derivative this step needs, in one line with the "
+                           "point included: 'd/dx <expression> at x=<point>'. It "
+                           "is computed exactly and given back to you -- never "
+                           "apply the chain rule yourself. Empty string if the "
+                           "step needs no derivative.",
+        },
         "next_action": {"type": "string", "enum": ["continue", "final_answer"]},
     },
-    "required": ["title", "content", "calc", "calc_of", "convert", "next_action"],
+    "required": ["title", "content", "calc", "calc_of", "convert", "derivative",
+                 "next_action"],
 }
 
 

@@ -16,7 +16,7 @@ from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat  # noqa: E402
 
 
 def step(title: str, content: str, next_action: str = "continue",
-         calc: str = "", convert: str = "") -> str:
+         calc: str = "", convert: str = "", derivative: str = "") -> str:
     # calc and convert are omitted unless asked for, so the scripts that predate
     # them stay honest about what a model without the fields sends.
     body = {"title": title, "content": content, "next_action": next_action}
@@ -24,6 +24,8 @@ def step(title: str, content: str, next_action: str = "continue",
         body["calc"] = calc
     if convert:
         body["convert"] = convert
+    if derivative:
+        body["derivative"] = derivative
     return json.dumps(body)
 
 

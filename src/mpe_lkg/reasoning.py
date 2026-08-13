@@ -19,6 +19,7 @@ from .arithmetic import (
     as_text,
     convert,
     correction,
+    derivative_request,
     evaluate,
     product_unit,
     question_conversion,
@@ -78,6 +79,9 @@ SYSTEM_PROMPT = (
     "a conversion into steps and never multiply conversion factors together yourself -- "
     "that is the single most common way this goes wrong. Leave it empty if this question "
     "involves no units. "
+    "If a step needs a derivative, put the WHOLE request in a 'derivative' field in one "
+    "line with the point included, as 'd/dx <expression> at x=<point>'. It is computed "
+    "exactly and given back to you -- never apply the chain rule yourself. "
     "If a step relies on a calculation, ALSO put that calculation in a 'calc' field as a "
     "bare arithmetic expression with no words and no equals sign, built ONLY from numbers "
     "that appear in this question. It is evaluated exactly and the result is given back to "
@@ -640,7 +644,7 @@ def _synthesise(
     # was computed exactly -- but an answer of 10080 written beside it.
     units_block = ""
     if converted:
-        units_block = "\n\nThese conversions were done exactly:\n" + "\n".join(
+        units_block = "\n\nThese were computed exactly:\n" + "\n".join(
             f"  {c}" for c in converted
         ) + "\nIf one of them answers the question directly, give that number."
     try:
@@ -733,6 +737,7 @@ def reason(
     # index and title of its step, and only those on the strongest path are shown.
     settled: list[tuple[int, str, str]] = []
     converted: list[str] = []
+    derivatives = 0
     # Facts that can be OFFERED as the answer: a label saying what the value is,
     # and the exact value itself. Kept apart from the display strings because the
     # answer comes from the Fraction, never from text parsed back out of a model.
@@ -877,6 +882,29 @@ def reason(
                         "type": "convert",
                         "step": step_number,
                         "request": asked,
+                        "result": text,
+                    }
+
+            wanted = str(step_json.get("derivative", "")).strip()
+            if check_arithmetic and wanted:
+                done = derivative_request(wanted)
+                if done is not None:
+                    text, exact, label = done
+                    # Like conversions, unfiltered to the synthesis: an exact
+                    # derivative cannot be wrong -- x**x and unknown names
+                    # refuse rather than answer -- so every one is a fact
+                    # worth carrying.
+                    if text not in converted:
+                        converted.append(text)
+                    labelled.append((label, exact))
+                    derivatives += 1
+                    if as_text(exact) not in content.replace(",", ""):
+                        content = f"{content} ({text})"
+                        step_json["content"] = content
+                    yield {
+                        "type": "derivative",
+                        "step": step_number,
+                        "request": wanted,
                         "result": text,
                     }
 
@@ -1081,6 +1109,7 @@ def reason(
             "sums_checked": sums_checked,
             "sums_corrected": sums_corrected,
             "conversions": conversions,
+            "derivatives": derivatives,
             # Long numbers in the answer that no tool computed. Zero on the
             # selection path by construction; this is the synthesis path's score.
             "unsupported_numbers": unsupported,

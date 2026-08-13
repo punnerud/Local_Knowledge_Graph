@@ -92,6 +92,10 @@ class GraphDB:
             self.conn.execute(
                 "INSERT INTO facts (run, kind, statement) VALUES (?, 'conversion', ?)",
                 (job.id, str(event.get("result", ""))))
+        for event in job.of_type("derivative"):
+            self.conn.execute(
+                "INSERT INTO facts (run, kind, statement) VALUES (?, 'derivative', ?)",
+                (job.id, str(event.get("result", ""))))
         for event in job.of_type("calc"):
             self.conn.execute(
                 "INSERT INTO facts (run, kind, statement) VALUES (?, 'calculation', ?)",

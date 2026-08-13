@@ -319,6 +319,16 @@
             network.fit();
         }
 
+        function exactChip(text, title) {
+            if (seenSums.has(text)) return;
+            seenSums.add(text);
+            if (sums.hidden) { sums.hidden = false; sums.innerHTML = '<b>Exact:</b>'; }
+            const chip = document.createElement('span');
+            chip.textContent = text;
+            chip.title = title;
+            sums.appendChild(chip);
+        }
+
         function showHints(items) {
             const box = document.getElementById('hints-box');
             box.innerHTML = '';
@@ -670,18 +680,16 @@
                     addExactConversion(data);
 
                 } else if (data.type === 'calc') {
+                    // Shown once per distinct expression: a repeated sum means
+                    // the model re-derived it, but the same text twice adds
+                    // nothing to the strip.
+                    exactChip(`${data.expression} = ${data.value}`,
+                              `Evaluated exactly at step ${data.step}`);
                     addExactSum(data);
-                    // Deliberately not deduplicated away entirely: a repeated sum
-                    // means the model re-derived it, which is worth seeing. But the
-                    // same expression twice adds nothing, so it is shown once.
-                    if (!seenSums.has(data.expression)) {
-                        seenSums.add(data.expression);
-                        if (sums.hidden) { sums.hidden = false; sums.innerHTML = '<b>Exact:</b>'; }
-                        const chip = document.createElement('span');
-                        chip.textContent = `${data.expression} = ${data.value}`;
-                        chip.title = `Evaluated exactly at step ${data.step}`;
-                        sums.appendChild(chip);
-                    }
+
+                } else if (data.type === 'derivative') {
+                    // Exact like a sum: into the strip a reader can check.
+                    exactChip(data.result, `Computed exactly at step ${data.step}`);
 
                 } else if (data.type === 'hints') {
                     // From OTHER sessions, opt-in, and drawn apart: a hint must

@@ -370,3 +370,41 @@ def question_conversion(question: str):
         return None
     return convert(f"{match.group('value')} {match.group('source')} "
                    f"to {match.group('target')}")
+
+
+# "d/dx (3*x**2+5)**4 at x=1/2", "derivative of x**3 - 4*x at 2".
+DERIVATIVE = re.compile(
+    r"(?:d/dx|derivative\s+of)\s*(?P<expr>.+?)\s+at\s*(?:x\s*=\s*)?"
+    r"(?P<at>-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def derivative_request(request: str):
+    """A derivative the model asked for, settled exactly, or None.
+
+    The same contract as ``convert`` one shelf over: the model NAMES the
+    derivative and the value comes from mpeqs.calculus, which computes it two
+    independent ways and whose tests demand they agree. Measured need: on the
+    calculus battery the model dropped a chain factor (6912 where the answer
+    is 235824) and read a tangent at the wrong point -- the same
+    guessed-instead-of-asked failure the calc field closed for arithmetic.
+
+    Returns ``(text, value, label)`` or None; a refusal from the calculus
+    module -- x**x, an unknown name -- is silence rather than a guess.
+    """
+    match = DERIVATIVE.search(_normalise(str(request or "")))
+    if not match:
+        return None
+    try:
+        from mpeqs import calculus
+    except ImportError:
+        return None
+    try:
+        at = Fraction(match.group("at").replace(" ", ""))
+        expression = match.group("expr").strip()
+        value = calculus.derivative_at(expression, at=at)
+    except Exception:
+        return None
+    return (f"d/dx {expression} at x={at} = {readable(value)}", value,
+            f"derivative of {expression} at x={at}")

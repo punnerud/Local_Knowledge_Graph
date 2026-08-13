@@ -556,3 +556,62 @@ class TestRepairSums:
 
         text = "The capital of France is Paris, established over 2000 years ago."
         assert repair_sums(text) == (text, [])
+
+
+class TestDerivativeField:
+    """A derivative the model NAMES rather than works out, like calc and convert.
+
+    Measured need, from the six-domain battery: the model dropped a chain
+    factor (6912 where the answer is 235824) and read a tangent at the wrong
+    point. mpeqs.calculus computes the derivative two independent ways whose
+    tests demand agreement, so what comes back cannot be a matching mistake.
+    """
+
+    def test_the_field_is_required_like_its_siblings(self):
+        from mpe_lkg.backends import STEP_SCHEMA
+
+        assert "derivative" in STEP_SCHEMA["required"]
+
+    @pytest.mark.parametrize(("request_text", "value"), [
+        ("d/dx (4*x**2 + 8)**4 at x=3/2", "235824"),
+        ("derivative of 3*x**2 + 7*x at 4", "31"),
+        ("d/dx x**3 at x=2", "12"),
+    ])
+    def test_requests_settle_exactly(self, request_text, value):
+        from mpe_lkg.arithmetic import derivative_request
+
+        text, exact, label = derivative_request(request_text)
+        assert str(exact) == value
+        assert label.startswith("derivative of")
+
+    @pytest.mark.parametrize("refused", [
+        "d/dx x**x at 2",          # not a polynomial; calculus refuses
+        "d/dx sin(x) at 0",        # calls are refused
+        "derivative of x**2",      # no point given
+        "just words",
+    ])
+    def test_what_cannot_be_settled_is_silence(self, refused):
+        from mpe_lkg.arithmetic import derivative_request
+
+        assert derivative_request(refused) is None
+
+    def test_the_loop_carries_it_to_the_synthesis(self):
+        import json as _json
+
+        from mpe_lkg.backends import DeterministicEmbedding, ScriptedChat
+        from mpe_lkg.reasoning import reason
+
+        script = [
+            _json.dumps({"title": "Slope", "content": "Ask for it.",
+                         "calc": "", "calc_of": "", "convert": "",
+                         "derivative": "d/dx 3*x**2 + 7*x at x=4",
+                         "next_action": "final_answer"}),
+            "The slope is 31.",
+        ]
+        events = list(reason("What is the slope at x=4?",
+                             chat=ScriptedChat(script),
+                             embedder=DeterministicEmbedding(24)))
+        settled = next(e for e in events if e["type"] == "derivative")
+        assert settled["result"].endswith("= 31")
+        done = next(e for e in events if e["type"] == "done")
+        assert done["derivatives"] == 1
