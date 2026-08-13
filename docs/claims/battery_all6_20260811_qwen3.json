@@ -1,0 +1,1279 @@
+{
+ "n": 58,
+ "correct": 53,
+ "correct_rate": 0.9137931034482759,
+ "settled_exactly": 29,
+ "computed_but_unused": 2,
+ "steps_mean": 5.913793103448276,
+ "errors": 0,
+ "per_group": {
+  "long_multiplication": {
+   "n": 2,
+   "correct": 2
+  },
+  "long_addition": {
+   "n": 2,
+   "correct": 2
+  },
+  "long_subtraction": {
+   "n": 2,
+   "correct": 2
+  },
+  "awkward_percentage": {
+   "n": 2,
+   "correct": 2
+  },
+  "division_with_remainder": {
+   "n": 2,
+   "correct": 1
+  },
+  "word_problem": {
+   "n": 2,
+   "correct": 2
+  },
+  "unit_chain": {
+   "n": 2,
+   "correct": 2
+  },
+  "exact_fraction": {
+   "n": 2,
+   "correct": 2
+  },
+  "powers": {
+   "n": 2,
+   "correct": 2
+  },
+  "comparison": {
+   "n": 2,
+   "correct": 1
+  },
+  "derivative_at": {
+   "n": 2,
+   "correct": 1
+  },
+  "poly_integral": {
+   "n": 2,
+   "correct": 1
+  },
+  "tangent_slope": {
+   "n": 2,
+   "correct": 1
+  },
+  "quadratic_root": {
+   "n": 2,
+   "correct": 2
+  },
+  "pigeonhole_pair": {
+   "n": 2,
+   "correct": 2
+  },
+  "pigeonhole_k": {
+   "n": 2,
+   "correct": 2
+  },
+  "inclusion_exclusion": {
+   "n": 2,
+   "correct": 2
+  },
+  "handshakes": {
+   "n": 2,
+   "correct": 2
+  },
+  "light_travel": {
+   "n": 2,
+   "correct": 2
+  },
+  "wind_distance": {
+   "n": 2,
+   "correct": 2
+  },
+  "around_earth": {
+   "n": 2,
+   "correct": 2
+  },
+  "speed_conversion": {
+   "n": 2,
+   "correct": 2
+  },
+  "free_fall": {
+   "n": 2,
+   "correct": 2
+  },
+  "acceleration": {
+   "n": 2,
+   "correct": 2
+  },
+  "kinetic_energy": {
+   "n": 2,
+   "correct": 2
+  },
+  "convert_mass": {
+   "n": 2,
+   "correct": 2
+  },
+  "convert_length": {
+   "n": 2,
+   "correct": 2
+  },
+  "convert_time": {
+   "n": 2,
+   "correct": 2
+  },
+  "convert_digital": {
+   "n": 2,
+   "correct": 2
+  }
+ },
+ "consistency": {
+  "n": 4,
+  "steady": 2,
+  "note": "self-agreement only; a consistently wrong answer is invisible to this grading",
+  "per_group": {
+   "anchored": {
+    "n": 2,
+    "steady": 2
+   },
+   "invented": {
+    "n": 2,
+    "steady": 0
+   }
+  }
+ },
+ "rows": [
+  {
+   "group": "long_multiplication",
+   "domain": "arithmetic",
+   "question": "What is 53431930048 * 3565?",
+   "mode": "exact",
+   "expected": "190484830621120",
+   "answer": "190484830621120",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120",
+    "53431930048 * 3565 = 190484830621120"
+   ],
+   "steps": 7,
+   "seconds": 53.2,
+   "error": ""
+  },
+  {
+   "group": "long_multiplication",
+   "domain": "arithmetic",
+   "question": "What is 51395252287 * 5521?",
+   "mode": "exact",
+   "expected": "283753187876527",
+   "answer": "283753187876527",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527",
+    "51395252287 * 5521 = 283753187876527"
+   ],
+   "steps": 7,
+   "seconds": 40.6,
+   "error": ""
+  },
+  {
+   "group": "long_addition",
+   "domain": "arithmetic",
+   "question": "What is 193048999061 plus 479849142350?",
+   "mode": "exact",
+   "expected": "672898141411",
+   "answer": "672,898,141,411",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "193048999061 + 479849142350 = 672898141411",
+    "193048999061 + 479849142350 = 672898141411",
+    "193048999061 + 479849142350 = 672898141411"
+   ],
+   "steps": 1,
+   "seconds": 12.3,
+   "error": ""
+  },
+  {
+   "group": "long_addition",
+   "domain": "arithmetic",
+   "question": "What is 446174485585 plus 377327695495?",
+   "mode": "exact",
+   "expected": "823502181080",
+   "answer": "823502181080",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "446174485585 + 377327695495 = 823502181080",
+    "446174485585 + 377327695495 = 823502181080"
+   ],
+   "steps": 2,
+   "seconds": 12.0,
+   "error": ""
+  },
+  {
+   "group": "long_subtraction",
+   "domain": "arithmetic",
+   "question": "Subtract 68379748377 from 2753273712715. What is left?",
+   "mode": "exact",
+   "expected": "2684893964338",
+   "answer": "2684893964338",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "2753273712715 - 68379748377 = 2684893964338",
+    "2753273712715 - 68379748377 = 2684893964338",
+    "2753273712715 - 68379748377 = 2684893964338"
+   ],
+   "steps": 1,
+   "seconds": 10.8,
+   "error": ""
+  },
+  {
+   "group": "long_subtraction",
+   "domain": "arithmetic",
+   "question": "Subtract 84869938002 from 3054364818243. What is left?",
+   "mode": "exact",
+   "expected": "2969494880241",
+   "answer": "2969494880241",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "3054364818243 - 84869938002 = 2969494880241",
+    "3054364818243 - 84869938002 = 2969494880241",
+    "3054364818243 - 84869938002 = 2969494880241",
+    "3054364818243 - 84869938002 = 2969494880241",
+    "3054364818243 - 84869938002 = 2969494880241"
+   ],
+   "steps": 7,
+   "seconds": 30.7,
+   "error": ""
+  },
+  {
+   "group": "awkward_percentage",
+   "domain": "arithmetic",
+   "question": "What is 37 percent of 1426321?",
+   "mode": "exact",
+   "expected": "52773877/100",
+   "answer": "527,738.77",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "1426321 * 0.37 = 527738.77",
+    "1426321 * 0.37 = 527738.77",
+    "1426321 * 0.37 = 527738.77"
+   ],
+   "steps": 1,
+   "seconds": 8.9,
+   "error": ""
+  },
+  {
+   "group": "awkward_percentage",
+   "domain": "arithmetic",
+   "question": "What is 10 percent of 8596000?",
+   "mode": "exact",
+   "expected": "859600",
+   "answer": "859600",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "8596000 * 0.10 = 859600"
+   ],
+   "steps": 2,
+   "seconds": 7.6,
+   "error": ""
+  },
+  {
+   "group": "division_with_remainder",
+   "domain": "arithmetic",
+   "question": "How many whole times does 816 go into 80255013326, and what is the remainder? Give the remainder.",
+   "mode": "exact",
+   "expected": "14",
+   "answer": "816 goes into 80255013326 a whole number of times 98,340,000 times, with a remainder of 624.",
+   "correct": false,
+   "settled_exactly": false,
+   "calcs": [
+    "80255013326 // 816 = 98351732",
+    "80255013326 // 816 = 98351732"
+   ],
+   "steps": 7,
+   "seconds": 32.3,
+   "error": ""
+  },
+  {
+   "group": "division_with_remainder",
+   "domain": "arithmetic",
+   "question": "How many whole times does 296 go into 4678432745, and what is the remainder? Give the remainder.",
+   "mode": "exact",
+   "expected": "9",
+   "answer": "296 goes into 4678432745 whole times 15,771,732 times, with a remainder of 161.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 1,
+   "seconds": 9.5,
+   "error": ""
+  },
+  {
+   "group": "word_problem",
+   "domain": "arithmetic",
+   "question": "A warehouse holds 848 crates with 78 jars in each. 55 jars are broken and thrown away. How many jars remain?",
+   "mode": "exact",
+   "expected": "66089",
+   "answer": "66,144 - 55 = 66,089 jars remain.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "848 * 78 = 66144",
+    "848 * 78 = 66144",
+    "848 * 78 = 66144"
+   ],
+   "steps": 4,
+   "seconds": 13.4,
+   "error": ""
+  },
+  {
+   "group": "word_problem",
+   "domain": "arithmetic",
+   "question": "A warehouse holds 428 crates with 64 jars in each. 21 jars are broken and thrown away. How many jars remain?",
+   "mode": "exact",
+   "expected": "27371",
+   "answer": "27,392 - 21 = 27,371 jars remain.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "428 * 64 = 27392",
+    "428 * 64 - 21 = 27371",
+    "27392 - 21 = 27371"
+   ],
+   "steps": 7,
+   "seconds": 27.6,
+   "error": ""
+  },
+  {
+   "group": "unit_chain",
+   "domain": "arithmetic",
+   "question": "How many seconds are there in 54 weeks?",
+   "mode": "exact",
+   "expected": "32659200",
+   "answer": "32,659,200 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 7,
+   "seconds": 16.9,
+   "error": ""
+  },
+  {
+   "group": "unit_chain",
+   "domain": "arithmetic",
+   "question": "How many seconds are there in 23 weeks?",
+   "mode": "exact",
+   "expected": "13910400",
+   "answer": "13,910,400 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 7,
+   "seconds": 19.9,
+   "error": ""
+  },
+  {
+   "group": "exact_fraction",
+   "domain": "arithmetic",
+   "question": "What is 962171 divided by 620003? Give the answer to four decimal places.",
+   "mode": "exact",
+   "expected": "962171/620003",
+   "answer": "1.5519",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "962171 / 620003 = 1.551881",
+    "962171 / 620003 = 1.551881",
+    "962171 / 620003 = 1.551881",
+    "962171 / 620003 = 1.551881"
+   ],
+   "steps": 2,
+   "seconds": 11.2,
+   "error": ""
+  },
+  {
+   "group": "exact_fraction",
+   "domain": "arithmetic",
+   "question": "What is 781391 divided by 117508? Give the answer to four decimal places.",
+   "mode": "exact",
+   "expected": "781391/117508",
+   "answer": "6.6497",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "781391 / 117508 = 6.649683",
+    "781391 / 117508 = 6.649683",
+    "781391 / 117508 = 6.649683"
+   ],
+   "steps": 1,
+   "seconds": 8.6,
+   "error": ""
+  },
+  {
+   "group": "powers",
+   "domain": "arithmetic",
+   "question": "What is 70 to the power of 12?",
+   "mode": "exact",
+   "expected": "13841287201000000000000",
+   "answer": "13,841,287,201,000,000,000,000",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000",
+    "70^12 = 13841287201000000000000"
+   ],
+   "steps": 7,
+   "seconds": 33.6,
+   "error": ""
+  },
+  {
+   "group": "powers",
+   "domain": "arithmetic",
+   "question": "What is 80 to the power of 9?",
+   "mode": "exact",
+   "expected": "134217728000000000",
+   "answer": "134,217,728,000,000,000",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "80^9 = 134217728000000000",
+    "80^9 = 134217728000000000",
+    "80^9 = 134217728000000000",
+    "80^9 = 134217728000000000",
+    "80^9 = 134217728000000000",
+    "80^9 = 134217728000000000"
+   ],
+   "steps": 7,
+   "seconds": 33.0,
+   "error": ""
+  },
+  {
+   "group": "comparison",
+   "domain": "arithmetic",
+   "question": "Machine A makes 6033 parts an hour for 191 hours. Machine B makes 4351 parts an hour for 691 hours. How many parts does the more productive machine make in total?",
+   "mode": "exact",
+   "expected": "3006541",
+   "answer": "1,152,303",
+   "correct": false,
+   "settled_exactly": false,
+   "calcs": [
+    "6033 * 191 = 1152303"
+   ],
+   "steps": 6,
+   "seconds": 28.6,
+   "error": ""
+  },
+  {
+   "group": "comparison",
+   "domain": "arithmetic",
+   "question": "Machine A makes 1978 parts an hour for 485 hours. Machine B makes 5005 parts an hour for 174 hours. How many parts does the more productive machine make in total?",
+   "mode": "exact",
+   "expected": "959330",
+   "answer": "959,330",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "1978 * 485 = 959330",
+    "1978 * 485 = 959330",
+    "1978 * 485 = 959330",
+    "1978 * 485 = 959330",
+    "5005 * 174 = 870870",
+    "1978 * 485 = 959330",
+    "5005 * 174 = 870870"
+   ],
+   "steps": 7,
+   "seconds": 39.2,
+   "error": ""
+  },
+  {
+   "group": "derivative_at",
+   "domain": "calculus",
+   "question": "What is the derivative of (4x^2 + 8)^4 with respect to x, evaluated at x = 3/2? Give the exact value.",
+   "mode": "exact",
+   "expected": "235824",
+   "answer": "6912",
+   "correct": false,
+   "settled_exactly": false,
+   "calcs": [
+    "4*(4*3/2)^3*8 = 6912"
+   ],
+   "steps": 7,
+   "seconds": 26.1,
+   "error": ""
+  },
+  {
+   "group": "derivative_at",
+   "domain": "calculus",
+   "question": "What is the derivative of (4x^2 + 6)^3 with respect to x, evaluated at x = -2? Give the exact value.",
+   "mode": "exact",
+   "expected": "-23232",
+   "answer": "-23232",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "3*(4*(-2)^2 + 6)^2 * (8*(-2)) = -23232",
+    "3 * (4*(-2)^2 + 6)^2 * 8*(-2) = -23232",
+    "3 * (4*(-2)^2 + 6)^2 * 8*(-2) = -23232",
+    "3 * (4*(-2)^2 + 6)^2 * 8*(-2) = -23232",
+    "3 * (4*(-2)^2 + 6)^2 * 8*(-2) = -23232"
+   ],
+   "steps": 7,
+   "seconds": 41.1,
+   "error": ""
+  },
+  {
+   "group": "poly_integral",
+   "domain": "calculus",
+   "question": "What is the definite integral of 1x^2 + -5x + -8 from x = -1 to x = 3? Give the exact value.",
+   "mode": "exact",
+   "expected": "-128/3",
+   "answer": "-42.6667",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667",
+    "1*(3)^3/3 - 1*(-1)^3/3 + (-5)*(3)^2/2 - (-5)*(-1)^2/2 + (-8)*3 - (-8)*(-1) = -42.666667"
+   ],
+   "steps": 7,
+   "seconds": 72.5,
+   "error": ""
+  },
+  {
+   "group": "poly_integral",
+   "domain": "calculus",
+   "question": "What is the definite integral of 6x^2 + -8x + -7 from x = -3 to x = -1? Give the exact value.",
+   "mode": "exact",
+   "expected": "70",
+   "answer": "60",
+   "correct": false,
+   "settled_exactly": true,
+   "calcs": [
+    "6*(-1)^3 - 6*(-3)^3 + (-8)*(-1)^2 - (-8)*(-3)^2 + (-7)*(-1) - (-7)*(-3) = 206",
+    "6*(-1)^3 - 6*(-3)^3 + (-8)*(-1)^2 - (-8)*(-3)^2 + (-7)*(-1) - (-7)*(-3) = 206",
+    "6*(-1)^3 - 6*(-3)^3 + (-8)*(-1)^2 - (-8)*(-3)^2 + (-7)*(-1) - (-7)*(-3) = 206",
+    "6*(-1)^3 - 6*(-3)^3 + (-8)*(-1)^2 - (-8)*(-3)^2 + (-7)*(-1) - (-7)*(-3) = 206",
+    "6*(-1)^3 - 6*(-3)^3 - 8*(-1)^2 + 8*(-3)^2 -7*(-1) + 7*(-3) = 206",
+    "2*(-1)^3 - 4*(-1)^2 - 7*(-1) - (2*(-3)^3 - 4*(-3)^2 - 7*(-3)) = 70",
+    "2*(-1)^3 - 4*(-1)^2 - 7*(-1) - (2*(-3)^3 - 4*(-3)^2 - 7*(-3)) = 70",
+    "2*(-1)^3 - 4*(-1)^2 - 7*(-1) - (2*(-3)^3 - 4*(-3)^2 - 7*(-3)) = 70"
+   ],
+   "steps": 5,
+   "seconds": 71.5,
+   "error": ""
+  },
+  {
+   "group": "tangent_slope",
+   "domain": "calculus",
+   "question": "A curve follows y = 6x^2 + 1x. What is the slope of the tangent line at x = 2?",
+   "mode": "exact",
+   "expected": "25",
+   "answer": "The slope of the tangent line at x = 2 is 25.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "6*2 + 1 = 13",
+    "12*2 + 1 = 25",
+    "12*2 + 1 = 25"
+   ],
+   "steps": 1,
+   "seconds": 11.5,
+   "error": ""
+  },
+  {
+   "group": "tangent_slope",
+   "domain": "calculus",
+   "question": "A curve follows y = 3x^2 + 7x. What is the slope of the tangent line at x = 4?",
+   "mode": "exact",
+   "expected": "31",
+   "answer": "The slope of the tangent line at x = 4 is 52.",
+   "correct": false,
+   "settled_exactly": true,
+   "calcs": [
+    "3*4*2 + 7*4 = 52",
+    "6*4+7 = 31",
+    "6*4+7 = 31",
+    "4+7 = 11",
+    "4+7 = 11",
+    "6*4+7 = 31",
+    "6*4+7 = 31"
+   ],
+   "steps": 6,
+   "seconds": 32.2,
+   "error": ""
+  },
+  {
+   "group": "quadratic_root",
+   "domain": "calculus",
+   "question": "Solve 2x^2 - 10x - 12 = 0. What is the largest root?",
+   "mode": "exact",
+   "expected": "6",
+   "answer": "6",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "2*(-10)^2 - 4*2*(-12) = 296",
+    "2*(-10)^2 - 4*2*(-12) = 296",
+    "2*(-10)^2 - 4*2*(-12) = 296",
+    "2 - 4*2*(-12) = 98",
+    "(-10)^2 - 4*2*(-12) = 196",
+    "(-10)^2 - 4*2*(-12) = 196",
+    "(-10)^2 - 4*2*(-12) = 196"
+   ],
+   "steps": 7,
+   "seconds": 53.8,
+   "error": ""
+  },
+  {
+   "group": "quadratic_root",
+   "domain": "calculus",
+   "question": "Solve 2x^2 - 6x + 0 = 0. What is the largest root?",
+   "mode": "exact",
+   "expected": "3",
+   "answer": "The largest root is 3.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 7,
+   "seconds": 25.7,
+   "error": ""
+  },
+  {
+   "group": "anchored",
+   "domain": "consistency",
+   "question": "On which continent is Canada?",
+   "mode": "consistency",
+   "steady": true,
+   "said": "North America",
+   "seconds": 0.6
+  },
+  {
+   "group": "anchored",
+   "domain": "consistency",
+   "question": "On which continent is Thailand?",
+   "mode": "consistency",
+   "steady": true,
+   "said": "Asia",
+   "seconds": 0.5
+  },
+  {
+   "group": "invented",
+   "domain": "consistency",
+   "question": "What is the postal code of Brennveien 51 in Fjellmo?",
+   "mode": "consistency",
+   "steady": false,
+   "said": "I do not know.",
+   "seconds": 0.8
+  },
+  {
+   "group": "invented",
+   "domain": "consistency",
+   "question": "What is the postal code of Solhaalle 7 in Ostero?",
+   "mode": "consistency",
+   "steady": false,
+   "said": "I do not know.",
+   "seconds": 0.8
+  },
+  {
+   "group": "pigeonhole_pair",
+   "domain": "logic",
+   "question": "A drawer holds 14 grey, 11 blue, 26 black, 20 red socks. How many socks must be drawn in the dark to be certain of a matching pair?",
+   "mode": "exact",
+   "expected": "5",
+   "answer": "5 socks must be drawn to be certain of a matching pair.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "14 + 11 + 26 + 20 = 71"
+   ],
+   "steps": 2,
+   "seconds": 14.5,
+   "error": ""
+  },
+  {
+   "group": "pigeonhole_pair",
+   "domain": "logic",
+   "question": "A drawer holds 14 grey, 7 black, 28 white, 20 blue socks. How many socks must be drawn in the dark to be certain of a matching pair?",
+   "mode": "exact",
+   "expected": "5",
+   "answer": "5 socks must be drawn to be certain of a matching pair.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "14 + 7 + 28 + 20 = 69",
+    "4 + 1 = 5"
+   ],
+   "steps": 7,
+   "seconds": 29.1,
+   "error": ""
+  },
+  {
+   "group": "pigeonhole_k",
+   "domain": "logic",
+   "question": "A drawer holds 5 grey, 8 green socks. How many socks must be drawn in the dark to be certain of 3 socks of the same colour?",
+   "mode": "exact",
+   "expected": "5",
+   "answer": "5 socks must be drawn to be certain of 3 socks of the same colour.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "5 + 8 = 13",
+    "2 + 2 + 1 = 5",
+    "2 + 2 + 1 = 5",
+    "2 + 2 + 1 = 5",
+    "2 + 2 + 1 = 5",
+    "2 + 2 + 1 = 5"
+   ],
+   "steps": 7,
+   "seconds": 38.1,
+   "error": ""
+  },
+  {
+   "group": "pigeonhole_k",
+   "domain": "logic",
+   "question": "A drawer holds 11 green, 13 red, 23 grey socks. How many socks must be drawn in the dark to be certain of 4 socks of the same colour?",
+   "mode": "exact",
+   "expected": "10",
+   "answer": "10 socks must be drawn to be certain of having 4 socks of the same color.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "11 + 13 + 23 = 47",
+    "3 + 3 + 3 + 1 = 10",
+    "3 + 3 + 3 + 1 = 10",
+    "3 + 3 + 3 + 1 = 10",
+    "3 + 3 + 3 + 1 = 10",
+    "11 + 13 + 23 = 47"
+   ],
+   "steps": 7,
+   "seconds": 39.2,
+   "error": ""
+  },
+  {
+   "group": "inclusion_exclusion",
+   "domain": "logic",
+   "question": "In a class, 37 students study French, 27 study German, and 16 study both. How many students study at least one of the two languages?",
+   "mode": "exact",
+   "expected": "48",
+   "answer": "48 students study at least one of the two languages.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "37 + 27 - 16 = 48",
+    "37 - 16 = 21",
+    "27 - 16 = 11"
+   ],
+   "steps": 7,
+   "seconds": 23.8,
+   "error": ""
+  },
+  {
+   "group": "inclusion_exclusion",
+   "domain": "logic",
+   "question": "In a class, 49 students study French, 60 study German, and 43 study both. How many students study at least one of the two languages?",
+   "mode": "exact",
+   "expected": "66",
+   "answer": "66 students study at least one of the two languages.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "49 + 60 - 43 = 66",
+    "49 - 43 = 6",
+    "60 - 43 = 17"
+   ],
+   "steps": 7,
+   "seconds": 15.1,
+   "error": ""
+  },
+  {
+   "group": "handshakes",
+   "domain": "logic",
+   "question": "12 people are at a meeting and every pair shakes hands exactly once. How many handshakes happen?",
+   "mode": "exact",
+   "expected": "66",
+   "answer": "66",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "12 * 11 / 2 = 66",
+    "12 * 11 / 2 = 66",
+    "12 * 11 / 2 = 66"
+   ],
+   "steps": 7,
+   "seconds": 27.0,
+   "error": ""
+  },
+  {
+   "group": "handshakes",
+   "domain": "logic",
+   "question": "33 people are at a meeting and every pair shakes hands exactly once. How many handshakes happen?",
+   "mode": "exact",
+   "expected": "528",
+   "answer": "528 handshakes happen.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528",
+    "33 * 32 / 2 = 528"
+   ],
+   "steps": 7,
+   "seconds": 32.3,
+   "error": ""
+  },
+  {
+   "group": "light_travel",
+   "domain": "physics",
+   "question": "Light travels at 299,792,458 metres per second. The average distance to the Sun is 149,597,870 kilometres. How many seconds does light take to cover that distance? Give the answer to two decimal places.",
+   "mode": "exact",
+   "expected": "74798935000/149896229",
+   "answer": "499.00 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "149597870000 / 299792458 = 499.004782",
+    "149597870000 / 299792458 = 499.004782",
+    "149597870000 / 299792458 = 499.004782",
+    "149597870 / 149597870 = 1",
+    "299792458 * 499.004782 = 149597870150"
+   ],
+   "steps": 7,
+   "seconds": 31.5,
+   "error": ""
+  },
+  {
+   "group": "light_travel",
+   "domain": "physics",
+   "question": "Light travels at 299,792,458 metres per second. The average distance to Mars at its closest is 54,600,000 kilometres. How many seconds does light take to cover that distance? Give the answer to two decimal places.",
+   "mode": "exact",
+   "expected": "3900000000/21413747",
+   "answer": "182.13 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996",
+    "54600000 * 1000 / 299792458 = 182.125996"
+   ],
+   "steps": 7,
+   "seconds": 21.3,
+   "error": ""
+  },
+  {
+   "group": "wind_distance",
+   "domain": "physics",
+   "question": "A storm wind blows steadily at 45 miles per hour. One mile is exactly 1.609344 kilometres. How many kilometres does the wind travel in 40 hours?",
+   "mode": "exact",
+   "expected": "1810512/625",
+   "answer": "2896.8192 kilometers",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "45 * 40 = 1800",
+    "1.609344 * 1800 = 2896.8192",
+    "45 * 40 = 1800",
+    "45 * 40 * 1.609344 = 2896.8192",
+    "45 * 40 * 1.609344 = 2896.8192",
+    "45 * 40 * 1.609344 = 2896.8192",
+    "45 * 40 = 1800",
+    "45 * 40 * 1.609344 = 2896.8192"
+   ],
+   "steps": 7,
+   "seconds": 42.9,
+   "error": ""
+  },
+  {
+   "group": "wind_distance",
+   "domain": "physics",
+   "question": "A storm wind blows steadily at 102 miles per hour. One mile is exactly 1.609344 kilometres. How many kilometres does the wind travel in 35 hours?",
+   "mode": "exact",
+   "expected": "17954244/3125",
+   "answer": "5745.35808 kilometres",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "102 * 35 = 3570",
+    "102 * -35 = -3570",
+    "102 * 35 * 1.609344 = 5745.35808",
+    "102 * 35 * 1.609344 = 5745.35808"
+   ],
+   "steps": 7,
+   "seconds": 25.7,
+   "error": ""
+  },
+  {
+   "group": "around_earth",
+   "domain": "physics",
+   "question": "The Earth's equator is 40,075 kilometres around. Travelling at a constant 886 kilometres per hour, how many hours does one full circuit take?",
+   "mode": "exact",
+   "expected": "40075/886",
+   "answer": "45.23 hours",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "40075 / 886 = 45.231377",
+    "40075 / 886 = 45.231377"
+   ],
+   "steps": 7,
+   "seconds": 20.1,
+   "error": ""
+  },
+  {
+   "group": "around_earth",
+   "domain": "physics",
+   "question": "The Earth's equator is 40,075 kilometres around. Travelling at a constant 499 kilometres per hour, how many hours does one full circuit take?",
+   "mode": "exact",
+   "expected": "40075/499",
+   "answer": "80.31 hours",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "40075 / 499 = 80.310621",
+    "40075 / 80.310621 = 499.000002",
+    "40075 / 499 = 80.310621"
+   ],
+   "steps": 7,
+   "seconds": 25.3,
+   "error": ""
+  },
+  {
+   "group": "speed_conversion",
+   "domain": "physics",
+   "question": "A vehicle moves at 88 miles per hour. One mile is exactly 1.609344 kilometres. What is its speed in metres per second?",
+   "mode": "exact",
+   "expected": "122936/3125",
+   "answer": "39.33952 metres per second",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "88 * 1.609344 * 1000 / 3600 = 39.33952",
+    "88 * 1.609344 * 1000 / 3600 = 39.33952"
+   ],
+   "steps": 7,
+   "seconds": 21.5,
+   "error": ""
+  },
+  {
+   "group": "speed_conversion",
+   "domain": "physics",
+   "question": "A vehicle moves at 45 miles per hour. One mile is exactly 1.609344 kilometres. What is its speed in metres per second?",
+   "mode": "exact",
+   "expected": "12573/625",
+   "answer": "20.1168 metres per second.",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "45 * 1.609344 * 1000 / 3600 = 20.1168",
+    "45 * 1.609344 * 1000 / 3600 = 20.1168",
+    "45 * 1.609344 * 1000 / 3600 = 20.1168"
+   ],
+   "steps": 7,
+   "seconds": 30.0,
+   "error": ""
+  },
+  {
+   "group": "free_fall",
+   "domain": "physics",
+   "question": "An object falls from rest, and the height fallen follows h = g*t^2/2 with g = 9.81 metres per second squared. It falls 593.505 metres. How many seconds was it falling?",
+   "mode": "exact",
+   "expected": "11",
+   "answer": "11 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "2 * 593.505 / 9.81 = 121",
+    "2 * 593.505 / 9.81 = 121"
+   ],
+   "steps": 7,
+   "seconds": 23.4,
+   "error": ""
+  },
+  {
+   "group": "free_fall",
+   "domain": "physics",
+   "question": "An object falls from rest, and the height fallen follows h = g*t^2/2 with g = 9.81 metres per second squared. It falls 961.38 metres. How many seconds was it falling?",
+   "mode": "exact",
+   "expected": "14",
+   "answer": "14.0 seconds",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "2 * 961.38 / 9.81 = 196",
+    "2 * 961.38 / 9.81 = 196"
+   ],
+   "steps": 7,
+   "seconds": 20.1,
+   "error": ""
+  },
+  {
+   "group": "acceleration",
+   "domain": "physics",
+   "question": "A vehicle starts at 9 metres per second and accelerates at 9 metres per second squared for 11 seconds, following v = u + a*t. What is its final speed in metres per second?",
+   "mode": "exact",
+   "expected": "108",
+   "answer": "108 metres per second.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "9 + 9 * 11 = 108",
+    "9 + 9 * 11 = 108",
+    "9 + 9 * 11 = 108"
+   ],
+   "steps": 7,
+   "seconds": 21.6,
+   "error": ""
+  },
+  {
+   "group": "acceleration",
+   "domain": "physics",
+   "question": "A vehicle starts at 13 metres per second and accelerates at 4 metres per second squared for 27 seconds, following v = u + a*t. What is its final speed in metres per second?",
+   "mode": "exact",
+   "expected": "121",
+   "answer": "121 metres per second.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121",
+    "13 + 4 * 27 = 121"
+   ],
+   "steps": 7,
+   "seconds": 40.1,
+   "error": ""
+  },
+  {
+   "group": "kinetic_energy",
+   "domain": "physics",
+   "question": "A mass of 19 kilograms moves at 48 metres per second. Using KE = m*v^2/2, what is its kinetic energy in joules?",
+   "mode": "exact",
+   "expected": "21888",
+   "answer": "21888 joules",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888",
+    "19 * 48 * 48 / 2 = 21888"
+   ],
+   "steps": 7,
+   "seconds": 46.1,
+   "error": ""
+  },
+  {
+   "group": "kinetic_energy",
+   "domain": "physics",
+   "question": "A mass of 9 kilograms moves at 18 metres per second. Using KE = m*v^2/2, what is its kinetic energy in joules?",
+   "mode": "exact",
+   "expected": "1458",
+   "answer": "1458 joules",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458",
+    "9 * 18 * 18 / 2 = 1458"
+   ],
+   "steps": 7,
+   "seconds": 40.8,
+   "error": ""
+  },
+  {
+   "group": "convert_mass",
+   "domain": "units",
+   "question": "How many kilograms are there in 530 tonnes?",
+   "mode": "exact",
+   "expected": "530000",
+   "answer": "530 tonnes is equal to 530,000 kilograms.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "530 * 1000 = 530000",
+    "530 * 1000 = 530000"
+   ],
+   "steps": 7,
+   "seconds": 20.5,
+   "error": ""
+  },
+  {
+   "group": "convert_mass",
+   "domain": "units",
+   "question": "How many kilograms are there in 706 tonnes?",
+   "mode": "exact",
+   "expected": "706000",
+   "answer": "706,000 kilograms.",
+   "correct": true,
+   "settled_exactly": true,
+   "calcs": [
+    "706 * 1000 = 706000",
+    "706 * 1000 = 706000"
+   ],
+   "steps": 7,
+   "seconds": 19.9,
+   "error": ""
+  },
+  {
+   "group": "convert_length",
+   "domain": "units",
+   "question": "How many millimetres are there in 711 inchs?",
+   "mode": "exact",
+   "expected": "90297/5",
+   "answer": "18,059.4 millimetres",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4",
+    "711 * 25.4 = 18059.4"
+   ],
+   "steps": 7,
+   "seconds": 35.1,
+   "error": ""
+  },
+  {
+   "group": "convert_length",
+   "domain": "units",
+   "question": "How many millimetres are there in 466 foots?",
+   "mode": "exact",
+   "expected": "710184/5",
+   "answer": "142,036.8 millimetres",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 7,
+   "seconds": 26.6,
+   "error": ""
+  },
+  {
+   "group": "convert_time",
+   "domain": "units",
+   "question": "How many hours are there in 82 fortnights?",
+   "mode": "exact",
+   "expected": "27552",
+   "answer": "27,552 hours",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "82 * 14 = 1148",
+    "82 * 14 = 1148"
+   ],
+   "steps": 7,
+   "seconds": 17.4,
+   "error": ""
+  },
+  {
+   "group": "convert_time",
+   "domain": "units",
+   "question": "How many hours are there in 49 fortnights?",
+   "mode": "exact",
+   "expected": "16464",
+   "answer": "16,464 hours",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "49 * 14 = 686",
+    "49 * 14 = 686"
+   ],
+   "steps": 7,
+   "seconds": 17.2,
+   "error": ""
+  },
+  {
+   "group": "convert_digital",
+   "domain": "units",
+   "question": "How many bytes are there in 5 gibibytes?",
+   "mode": "exact",
+   "expected": "5368709120",
+   "answer": "5,368,709,120 bytes",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [
+    "1024^3 = 1073741824"
+   ],
+   "steps": 7,
+   "seconds": 30.9,
+   "error": ""
+  },
+  {
+   "group": "convert_digital",
+   "domain": "units",
+   "question": "How many bytes are there in 44 mebibytes?",
+   "mode": "exact",
+   "expected": "46137344",
+   "answer": "46,137,344 bytes",
+   "correct": true,
+   "settled_exactly": false,
+   "calcs": [],
+   "steps": 7,
+   "seconds": 28.3,
+   "error": ""
+  }
+ ],
+ "seed": 20260811,
+ "model": "qwen3:4b-instruct-2507-q4_K_M"
+}
