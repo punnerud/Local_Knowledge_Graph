@@ -48,6 +48,7 @@ FULL_BATTERY = "docs/claims/battery_full_20260811_qwen3.json"
 PHYSICS = "docs/claims/battery_physics_20260811_qwen3.json"
 CALCPHYS = "docs/claims/battery_calcphys_20260811_qwen3.json"
 ALL_SIX = "docs/claims/battery_all6_20260811_qwen3.json"
+ALL_SIX_RUN2 = "docs/claims/battery_all6_run2_20260811_qwen3.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -524,6 +525,17 @@ FILE_CHECKS = [
         0.0,
         0.0,
         "and no run in it errored",
+    ),
+    (
+        ALL_SIX_RUN2,
+        # An independent full re-run, 53/58 both times -- the replication that
+        # makes the pin above worth trusting. Every earlier small comparison in
+        # this repository swung by up to 28 points; two identical 58-question
+        # totals is what stability actually looks like here.
+        lambda d: d["correct_rate"],
+        0.91,
+        0.10,
+        "and a full re-run lands on the same nine in ten",
     ),
     (
         QWEN_SELECT,
