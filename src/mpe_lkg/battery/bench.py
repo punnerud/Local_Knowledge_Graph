@@ -64,6 +64,8 @@ def run(
             ):
                 if event["type"] == "calc":
                     calcs.append(f"{event['expression']} = {event['value']}")
+                elif event["type"] == "derivative":
+                    calcs.append(event["result"])
                 elif event["type"] == "step":
                     steps += 1
                 elif event["type"] == "final":
