@@ -47,6 +47,7 @@ LLAMA_REPLICATION = "docs/claims/battery_555_llama3.2.json"
 FULL_BATTERY = "docs/claims/battery_full_20260811_qwen3.json"
 PHYSICS = "docs/claims/battery_physics_20260811_qwen3.json"
 CALCPHYS = "docs/claims/battery_calcphys_20260811_qwen3.json"
+ALL_SIX = "docs/claims/battery_all6_20260811_qwen3.json"
 
 # (file, extractor, expected, tolerance, label)
 #
@@ -506,6 +507,23 @@ FILE_CHECKS = [
         0.86,
         0.15,
         "calculus and extended physics land above five in six",
+    ),
+    (
+        ALL_SIX,
+        # The whole battery in one run: 58 gradeable questions across six
+        # domains, one sitting, one model. The number the README's positioning
+        # rests on when someone asks "measured against what?"
+        lambda d: d["correct_rate"],
+        0.91,
+        0.10,
+        "the full six-domain battery lands at nine in ten",
+    ),
+    (
+        ALL_SIX,
+        lambda d: float(d["errors"]),
+        0.0,
+        0.0,
+        "and no run in it errored",
     ),
     (
         QWEN_SELECT,
